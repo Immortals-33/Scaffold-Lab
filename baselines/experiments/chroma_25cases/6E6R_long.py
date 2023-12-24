@@ -27,21 +27,30 @@ def create_parser():
         type=str,
         help="Name of PDB"
     )
+    parser.add_argument(
+        "-g",
+        '--gradient',
+        type=int,
+        default=0,
+        help="Whether add sampling gradients to conditioner or not"
+    )
     return parser
 
 def system_setup(
-    seed: int = 33
+    seed: int = 33,
+    rg: bool = False
 ):
-    design = motif_scaffolding.MotifScaffolding('1BCF')
+    design = motif_scaffolding.MotifScaffolding('6E6R')
     
     config_info, total_length, components, sampled_contig = design.parse_contig(
-        contig="8-15/A92-99/16-30/A123-130/16-30/A47-54/16-30/A18-25/8-15"
+        contig="0-95/A23-35/0-95",
+        desired_total_length=(108, 108)
     )
     
     motif_idx = design.get_motif_indices(sampled_contig)
     
     index_tuple = design.adjust_motif(
-        "(self.C==1)",
+        "(self.C)",
         "[start - 1]",
         "[end - 1] + 1"
     )
@@ -59,15 +68,12 @@ def system_setup(
         index=motif_idx
     )
     
-    print(motif_idx, total_length)
-    print(motif_seq)
-    print(mask_aa)
-    
     final_protein = design.scaffold_sample(
         motif_seq, 
         mask_aa,
         new_protein,
-        seed
+        seed,
+        rg=rg
     )
     
     
@@ -76,7 +82,8 @@ def system_setup(
     
 def sample_motif_scaffolding(
     name: str = None,
-    num_samples: int = 100
+    num_samples: int = 100,
+    rg: bool = False
 ):
     os.makedirs(f'../motif_scaffolding/{name}', exist_ok=True)
     result_file = os.path.join(f'../motif_scaffolding/{name}', 'backbone_results.csv')
@@ -88,17 +95,22 @@ def sample_motif_scaffolding(
         'motif_indices',
         'ELBO',
         'seq',
-        'total_length'
+        'total_length',
+        'gradients'
     ])
     
     for sample_number in range(1, num_samples + 1):
         filename = f'{name}_{sample_number}.pdb'
         sample_file = os.path.join(os.path.join(f'../motif_scaffolding/{name}', filename))
         if not os.path.exists(sample_file):
-            protein, contig, motif, length = system_setup(random.randint(1, 10000))
+            protein, contig, motif, length = system_setup(
+                seed=random.randint(1, 10000),
+                rg=rg
+                )
             protein.to_PDB(os.path.join(f'../motif_scaffolding/{name}', filename))
             sequence = protein.sequence()
-            elbo = f'{chroma.score(protein)['elbo'].score:.3f}'
+            elbo = chroma.score(protein)['elbo'].score
+            elbo = f'{elbo:.3f}'
             
             # Write results
             results_df = results_df._append({
@@ -108,9 +120,11 @@ def sample_motif_scaffolding(
                 'motif_indices': motif,
                 'ELBO': elbo,
                 'seq': sequence,
-                'total_length': length
+                'total_length': length,
+                'gradients': rg
             }, ignore_index=True)
             
+            logging.info(f'Sampling done: {sample_file}, length = {length}, elbo = {elbo}.')
         else:
             print(f'Skipping existing sample: {sample_file}')
         
@@ -120,12 +134,18 @@ def sample_motif_scaffolding(
             
 if __name__ == "__main__":
     chroma = Chroma()
+    
+    # Args parsing
     parser = create_parser()
     args = parser.parse_args()
     number = args.num
     name = args.pdb
+    rg = True if args.gradient == 1 else False
+    
+    # Sample
     sample_motif_scaffolding(
         name=name,
-        num_samples=number
+        num_samples=number,
+        rg=rg
     )
             
