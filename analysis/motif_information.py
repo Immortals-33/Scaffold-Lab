@@ -1,6 +1,24 @@
 import re
 import pandas as pd
 
+"""
+This script is written for extracting useful information from RFdiffusion output log.
+Some specific parts were added to be printed manually, so it might not be generalized.
+
+However, the general output log does show some of the information, so I put it here
+in case it can be adapted for personal usage.
+
+Patterns:
+    `making_design`: This is for extracting the START of a single sample. 
+                        Whenever this pattern is caught, a new design is being sampled.
+    `sample_mask`: This is for extracting the CONTIG for a specific design.
+                    For motif-scaffolding task in RFdiffusion, contigs are sampled randomly each time,
+                    so this pattern can catch contig information for each sample.
+    `mask_1d_pattern': Also known as DIFFUSION_MASK, where the motifs are fixed and the scaffold 
+                        are designed. This is a list of boolean value where True=motif, False=scaffold.
+    `sampled_motif_rmsd': The final sampled MOTIF-RMSD value for each specific sample.
+    `finished_design`: This is for catching the TIME usage for each sample.
+"""
 # Regex patterns for extracting information
 making_design_pattern = re.compile(r'\[INFO\] - Making design (.*?/([^/]+)/([^_]+)_([^_]+))')
 sample_mask_pattern = re.compile(r"'sampled_mask': \['([^']+)'\]")
@@ -36,7 +54,8 @@ def process_log_file(file_path):
                 current_design['mask'] = mask_1d
                 current_design['motif_indices'] = [i + 1 for i, val in enumerate(mask_1d) if val]
 
-            # Check for 'Sampled motif RMSD' within the right timestep
+            # When catching motif-RMSD, set `between_timesteps=True`, 
+            # After catching, reset its value to continue to another sample.
             if 'Timestep 3,' in line:
                 between_timesteps = True
 
