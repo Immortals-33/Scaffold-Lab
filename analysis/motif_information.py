@@ -4,6 +4,7 @@ import pandas as pd
 """
 This script is written for extracting useful information from RFdiffusion output log.
 Some specific parts were added to be printed manually, so it might not be generalized.
+*Watch out! Some of the information can't be used directly.
 
 However, the general output log does show some of the information, so I put it here
 in case it can be adapted for personal usage.
