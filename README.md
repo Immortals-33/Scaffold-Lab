@@ -19,7 +19,7 @@ We present the benchmark for both unconditional generation and conditional gener
 - *RFdiffusion*: [Paper](https://www.nature.com/articles/s41586-023-06415-8) | [Code](https://github.com/RosettaCommons/RFdiffusion)
 - *Chroma*: [Paper](https://www.nature.com/articles/s41586-023-06728-8) | [Code](https://github.com/generatebio/chroma)
 - *FrameDiff*: [Paper](https://openreview.net/forum?id=m8OUBymxwv) | [Code](https://github.com/jasonkyuyim/se3_diffusion)
-- *FrameFlow*: [Paper](https://arxiv.org/abs/2310.05297)| [Code](https://github.com/microsoft/protein-frame-flow)
+- *FrameFlow*: [Paper](https://arxiv.org/abs/2310.05297) | [Code](https://github.com/microsoft/protein-frame-flow)
 - *Genie*: [Paper](https://arxiv.org/abs/2301.12485) | [Code](https://github.com/aqlaboratory/genie)
 
 ### Conditional Generation
