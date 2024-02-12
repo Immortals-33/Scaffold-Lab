@@ -1,2 +1,10 @@
 refolding/
 tmp/
+*.slurm
+*.out
+*.err
+gpdl_h_backbones/
+*.csv
+*.zip
+*.sh
+backup/
