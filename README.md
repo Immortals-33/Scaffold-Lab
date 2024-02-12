@@ -10,7 +10,7 @@ Official implementation for **_Scaffold-Lab: Critical Evaluation and Ranking of 
 
 ***
 
-_Scaffold-Lab_ is the first unified framework for evaluating protein backbone generation.  
+**_Scaffold-Lab_** is the first unified framework for evaluating protein backbone generation.  
 
 We present the benchmark for both unconditional generation and conditional generation in terms of *designability*, *diversity*, *novelty*, *efficiency* and *structural properties*. Currently evaluated methods are listed below:
 
