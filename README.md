@@ -28,3 +28,9 @@ We present the benchmark for both unconditional generation and conditional gener
 - *TDS*: [Paper](https://arxiv.org/abs/2306.17775) | [Code](https://github.com/blt2114/twisted_diffusion_sampler)
 - *RFdiffusion*: [Paper](https://www.nature.com/articles/s41586-023-06415-8) | [Code](https://github.com/RosettaCommons/RFdiffusion)
 - *Chroma*: [Paper](https://www.nature.com/articles/s41586-023-06728-8) | [Code](https://github.com/generatebio/chroma)
+
+## Usage
+***
+We provide code for both experiments and analysis.  
+- `analysis/`: Scripts for calculating several metrics, including *diversity*, *novelty* and *structural properties*.  
+- `baseline/experiments`: Scripts for performing motif-scaffolding experiments by *Chroma* using its `SubstrctureConditioner`.
