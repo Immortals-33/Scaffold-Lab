@@ -1,17 +1,17 @@
 # Configuration for self-consitency test on running ProteinMPNN and ESMFold.
 defaults:
-  - base
+  - override hydra/launcher: joblib
 
 inference:
-  name: null
+  name: unconditional
   gpu_id: 0  # CUDA GPU to use
   seed: 2
 
   # Directory of software, weights, and outputs.
-  backbone_pdb_dir: ./examples/demo/
+  backbone_pdb_dir: ./demo/unconditional/
   pmpnn_dir: ./tools/ProteinMPNN/
   output_dir: ./outputs/
 
   samples:
     # Number of ESMFold samples per backbone sample.
-    seq_per_sample: 100
+    seq_per_sample: 10

@@ -18,7 +18,7 @@ def main(args):
     import os.path
     import subprocess
     
-    from protein_mpnn_utils import loss_nll, loss_smoothed, gather_edges, gather_nodes, gather_nodes_t, cat_neighbors_nodes, _scores, _S_to_seq, tied_featurize, parse_PDB, parse_fasta
+    from protein_mpnn_utils import loss_nll, loss_smoothed, gather_edges, gather_nodes, gather_nodes_t, cat_neighbors_nodes, _scores, _S_to_seq, tied_featurize, parse_PDB
     from protein_mpnn_utils import StructureDataset, StructureDatasetPDB, ProteinMPNN
 
     if args.seed:
@@ -42,17 +42,9 @@ def main(args):
         file_path = os.path.realpath(__file__)
         k = file_path.rfind("/")
         if args.ca_only:
-            print("Using CA-ProteinMPNN!")
             model_folder_path = file_path[:k] + '/ca_model_weights/'
-            if args.use_soluble_model:
-                print("WARNING: CA-SolubleMPNN is not available yet")
-                sys.exit()
         else:
-            if args.use_soluble_model:
-                print("Using ProteinMPNN trained on soluble proteins only!")
-                model_folder_path = file_path[:k] + '/soluble_model_weights/'
-            else:
-                model_folder_path = file_path[:k] + '/vanilla_model_weights/'
+            model_folder_path = file_path[:k] + '/vanilla_model_weights/'
 
     checkpoint_path = model_folder_path + f'{args.model_name}.pt'
     folder_for_outputs = args.out_folder
@@ -62,10 +54,9 @@ def main(args):
     temperatures = [float(item) for item in args.sampling_temp.split()]
     omit_AAs_list = args.omit_AAs
     alphabet = 'ACDEFGHIKLMNPQRSTVWYX'
-    alphabet_dict = dict(zip(alphabet, range(21)))    
-    print_all = args.suppress_print == 0 
+    
     omit_AAs_np = np.array([AA in omit_AAs_list for AA in alphabet]).astype(np.float32)
-    device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
+    device = torch.device(f"cuda:{args.device}" if (torch.cuda.is_available()) else "cpu")
     if os.path.isfile(args.chain_id_jsonl):
         with open(args.chain_id_jsonl, 'r') as json_file:
             json_list = list(json_file)
@@ -73,9 +64,8 @@ def main(args):
             chain_id_dict = json.loads(json_str)
     else:
         chain_id_dict = None
-        if print_all:
-            print(40*'-')
-            print('chain_id_jsonl is NOT loaded')
+        print(40*'-')
+        print('chain_id_jsonl is NOT loaded')
         
     if os.path.isfile(args.fixed_positions_jsonl):
         with open(args.fixed_positions_jsonl, 'r') as json_file:
@@ -83,9 +73,8 @@ def main(args):
         for json_str in json_list:
             fixed_positions_dict = json.loads(json_str)
     else:
-        if print_all:
-            print(40*'-')
-            print('fixed_positions_jsonl is NOT loaded')
+        print(40*'-')
+        print('fixed_positions_jsonl is NOT loaded')
         fixed_positions_dict = None
     
     
@@ -96,9 +85,8 @@ def main(args):
         for json_str in json_list:
             pssm_dict.update(json.loads(json_str))
     else:
-        if print_all:
-            print(40*'-')
-            print('pssm_jsonl is NOT loaded')
+        print(40*'-')
+        print('pssm_jsonl is NOT loaded')
         pssm_dict = None
     
     
@@ -108,9 +96,8 @@ def main(args):
         for json_str in json_list:
             omit_AA_dict = json.loads(json_str)
     else:
-        if print_all:
-            print(40*'-')
-            print('omit_AA_jsonl is NOT loaded')
+        print(40*'-')
+        print('omit_AA_jsonl is NOT loaded')
         omit_AA_dict = None
     
     
@@ -120,9 +107,8 @@ def main(args):
         for json_str in json_list:
             bias_AA_dict = json.loads(json_str)
     else:
-        if print_all:
-            print(40*'-')
-            print('bias_AA_jsonl is NOT loaded')
+        print(40*'-')
+        print('bias_AA_jsonl is NOT loaded')
         bias_AA_dict = None
     
     
@@ -132,9 +118,8 @@ def main(args):
         for json_str in json_list:
             tied_positions_dict = json.loads(json_str)
     else:
-        if print_all:
-            print(40*'-')
-            print('tied_positions_jsonl is NOT loaded')
+        print(40*'-')
+        print('tied_positions_jsonl is NOT loaded')
         tied_positions_dict = None
 
     
@@ -144,17 +129,15 @@ def main(args):
     
         for json_str in json_list:
             bias_by_res_dict = json.loads(json_str)
-        if print_all:
-            print('bias by residue dictionary is loaded')
+        print('bias by residue dictionary is loaded')
     else:
-        if print_all:
-            print(40*'-')
-            print('bias by residue dictionary is not loaded, or not provided')
+        print(40*'-')
+        print('bias by residue dictionary is not loaded, or not provided')
         bias_by_res_dict = None
    
 
-    if print_all: 
-        print(40*'-')
+ 
+    print(40*'-')
     bias_AAs_np = np.zeros(len(alphabet))
     if bias_AA_dict:
             for n, AA in enumerate(alphabet):
@@ -173,20 +156,18 @@ def main(args):
         chain_id_dict = {}
         chain_id_dict[pdb_dict_list[0]['name']]= (designed_chain_list, fixed_chain_list)
     else:
-        dataset_valid = StructureDataset(args.jsonl_path, truncate=None, max_length=args.max_length, verbose=print_all)
+        dataset_valid = StructureDataset(args.jsonl_path, truncate=None, max_length=args.max_length)
 
+    print(40*'-')
     checkpoint = torch.load(checkpoint_path, map_location=device) 
+    print('Number of edges:', checkpoint['num_edges'])
     noise_level_print = checkpoint['noise_level']
+    print(f'Training noise level: {noise_level_print}A')
     model = ProteinMPNN(ca_only=args.ca_only, num_letters=21, node_features=hidden_dim, edge_features=hidden_dim, hidden_dim=hidden_dim, num_encoder_layers=num_layers, num_decoder_layers=num_layers, augment_eps=args.backbone_noise, k_neighbors=checkpoint['num_edges'])
     model.to(device)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
-
-    if print_all:
-        print(40*'-')
-        print('Number of edges:', checkpoint['num_edges'])
-        print(f'Training noise level: {noise_level_print}A')
- 
+    
     # Build paths for experiment
     base_folder = folder_for_outputs
     if base_folder[-1] != '/':
@@ -226,10 +207,12 @@ def main(args):
     # Validation epoch
     with torch.no_grad():
         test_sum, test_weights = 0., 0.
+        #print('Generating sequences...')
         for ix, protein in enumerate(dataset_valid):
             score_list = []
             global_score_list = []
             all_probs_list = []
+            all_decoding_orders = []
             all_log_probs_list = []
             S_sample_list = []
             batch_clones = [copy.deepcopy(protein) for i in range(BATCH_COPIES)]
@@ -237,54 +220,36 @@ def main(args):
             pssm_log_odds_mask = (pssm_log_odds_all > args.pssm_threshold).float() #1.0 for true, 0.0 for false
             name_ = batch_clones[0]['name']
             if args.score_only:
-                loop_c = 0 
-                if args.path_to_fasta:
-                    fasta_names, fasta_seqs = parse_fasta(args.path_to_fasta, omit=["/"])
-                    loop_c = len(fasta_seqs)
-                for fc in range(1+loop_c):
-                    if fc == 0:
-                        structure_sequence_score_file = base_folder + '/score_only/' + batch_clones[0]['name'] + f'_pdb'
-                    else:
-                        structure_sequence_score_file = base_folder + '/score_only/' + batch_clones[0]['name'] + f'_fasta_{fc}'
-                    native_score_list = []
-                    global_native_score_list = []
-                    if fc > 0:
-                        input_seq_length = len(fasta_seqs[fc-1])
-                        S_input = torch.tensor([alphabet_dict[AA] for AA in fasta_seqs[fc-1]], device=device)[None,:].repeat(X.shape[0], 1)
-                        S[:,:input_seq_length] = S_input #assumes that S and S_input are alphabetically sorted for masked_chains
-                    for j in range(NUM_BATCHES):
-                        randn_1 = torch.randn(chain_M.shape, device=X.device)
-                        log_probs = model(X, S, mask, chain_M*chain_M_pos, residue_idx, chain_encoding_all, randn_1)
-                        mask_for_loss = mask*chain_M*chain_M_pos
-                        scores = _scores(S, log_probs, mask_for_loss)
-                        native_score = scores.cpu().data.numpy()
-                        native_score_list.append(native_score)
-                        global_scores = _scores(S, log_probs, mask)
-                        global_native_score = global_scores.cpu().data.numpy()
-                        global_native_score_list.append(global_native_score)
-                    native_score = np.concatenate(native_score_list, 0)
-                    global_native_score = np.concatenate(global_native_score_list, 0)
-                    ns_mean = native_score.mean()
-                    ns_mean_print = np.format_float_positional(np.float32(ns_mean), unique=False, precision=4)
-                    ns_std = native_score.std()
-                    ns_std_print = np.format_float_positional(np.float32(ns_std), unique=False, precision=4)
+                structure_sequence_score_file = base_folder + '/score_only/' + batch_clones[0]['name'] + '.npz'
+                native_score_list = []
+                global_native_score_list = []
+                for j in range(NUM_BATCHES):
+                    randn_1 = torch.randn(chain_M.shape, device=X.device)
+                    log_probs = model(X, S, mask, chain_M*chain_M_pos, residue_idx, chain_encoding_all, randn_1)
+                    mask_for_loss = mask*chain_M*chain_M_pos
+                    scores = _scores(S, log_probs, mask_for_loss)
+                    native_score = scores.cpu().data.numpy()
+                    native_score_list.append(native_score)
+                    global_scores = _scores(S, log_probs, mask)
+                    global_native_score = global_scores.cpu().data.numpy()
+                    global_native_score_list.append(global_native_score)
+                native_score = np.concatenate(native_score_list, 0)
+                global_native_score = np.concatenate(global_native_score_list, 0)
+                ns_mean = native_score.mean()
+                ns_mean_print = np.format_float_positional(np.float32(ns_mean), unique=False, precision=4)
+                ns_std = native_score.std()
+                ns_std_print = np.format_float_positional(np.float32(ns_std), unique=False, precision=4)
 
-                    global_ns_mean = global_native_score.mean()
-                    global_ns_mean_print = np.format_float_positional(np.float32(global_ns_mean), unique=False, precision=4)
-                    global_ns_std = global_native_score.std()
-                    global_ns_std_print = np.format_float_positional(np.float32(global_ns_std), unique=False, precision=4)
+                global_ns_mean = global_native_score.mean()
+                global_ns_mean_print = np.format_float_positional(np.float32(global_ns_mean), unique=False, precision=4)
+                global_ns_std = global_native_score.std()
+                global_ns_std_print = np.format_float_positional(np.float32(global_ns_std), unique=False, precision=4)
 
-                    ns_sample_size = native_score.shape[0]
-                    seq_str = _S_to_seq(S[0,], chain_M[0,])
-                    np.savez(structure_sequence_score_file, score=native_score, global_score=global_native_score, S=S[0,].cpu().numpy(), seq_str=seq_str)
-                    if print_all:
-                        if fc == 0:
-                            print(f'Score for {name_} from PDB, mean: {ns_mean_print}, std: {ns_std_print}, sample size: {ns_sample_size},  global score, mean: {global_ns_mean_print}, std: {global_ns_std_print}, sample size: {ns_sample_size}')
-                        else:
-                            print(f'Score for {name_}_{fc} from FASTA, mean: {ns_mean_print}, std: {ns_std_print}, sample size: {ns_sample_size},  global score, mean: {global_ns_mean_print}, std: {global_ns_std_print}, sample size: {ns_sample_size}')
+                ns_sample_size = native_score.shape[0]
+                np.savez(structure_sequence_score_file, score=native_score, global_score=global_native_score)
+                print(f'Score for {name_}, mean: {ns_mean_print}, std: {ns_std_print}, sample size: {ns_sample_size},  Global Score for {name_}, mean: {global_ns_mean_print}, std: {global_ns_std_print}, sample size: {ns_sample_size}')
             elif args.conditional_probs_only:
-                if print_all:
-                    print(f'Calculating conditional probabilities for {name_}')
+                print(f'Calculating conditional probabilities for {name_}')
                 conditional_probs_only_file = base_folder + '/conditional_probs_only/' + batch_clones[0]['name']
                 log_conditional_probs_list = []
                 for j in range(NUM_BATCHES):
@@ -295,8 +260,7 @@ def main(args):
                 mask_out = (chain_M*chain_M_pos*mask)[0,].cpu().numpy()
                 np.savez(conditional_probs_only_file, log_p=concat_log_p, S=S[0,].cpu().numpy(), mask=mask[0,].cpu().numpy(), design_mask=mask_out)
             elif args.unconditional_probs_only:
-                if print_all:
-                    print(f'Calculating sequence unconditional probabilities for {name_}')
+                print(f'Calculating sequence unconditional probabilities for {name_}')
                 unconditional_probs_only_file = base_folder + '/unconditional_probs_only/' + batch_clones[0]['name']
                 log_unconditional_probs_list = []
                 for j in range(NUM_BATCHES):
@@ -317,8 +281,7 @@ def main(args):
                 ali_file = base_folder + '/seqs/' + batch_clones[0]['name'] + '.fa'
                 score_file = base_folder + '/scores/' + batch_clones[0]['name'] + '.npz'
                 probs_file = base_folder + '/probs/' + batch_clones[0]['name'] + '.npz'
-                if print_all:
-                    print(f'Generating sequences for: {name_}')
+                print(f'Generating sequences for: {name_}')
                 t0 = time.time()
                 with open(ali_file, 'w') as f:
                     for temp in temperatures:
@@ -340,6 +303,7 @@ def main(args):
                             global_scores = global_scores.cpu().data.numpy()
                             
                             all_probs_list.append(sample_dict["probs"].cpu().data.numpy())
+                            all_decoding_orders.append(sample_dict["decoding_order"].cpu().data.numpy())
                             all_log_probs_list.append(log_probs.cpu().data.numpy())
                             S_sample_list.append(S_sample.cpu().data.numpy())
                             for b_ix in range(BATCH_COPIES):
@@ -374,7 +338,7 @@ def main(args):
                                     global_native_score_print = np.format_float_positional(np.float32(global_native_score.mean()), unique=False, precision=4)
                                     script_dir = os.path.dirname(os.path.realpath(__file__))
                                     try:
-                                        commit_str = subprocess.check_output(f'git --git-dir {script_dir}/.git rev-parse HEAD', shell=True, stderr=subprocess.DEVNULL).decode().strip()
+                                        commit_str = subprocess.check_output(f'git --git-dir {script_dir}/.git rev-parse HEAD', shell=True).decode().strip()
                                     except subprocess.CalledProcessError:
                                         commit_str = 'unknown'
                                     if args.ca_only:
@@ -407,25 +371,20 @@ def main(args):
                     all_probs_concat = np.concatenate(all_probs_list)
                     all_log_probs_concat = np.concatenate(all_log_probs_list)
                     S_sample_concat = np.concatenate(S_sample_list)
-                    np.savez(probs_file, probs=np.array(all_probs_concat, np.float32), log_probs=np.array(all_log_probs_concat, np.float32), S=np.array(S_sample_concat, np.int32), mask=mask_for_loss.cpu().data.numpy(), chain_order=chain_list_list)
+                    np.savez(probs_file, probs=np.array(all_probs_concat, np.float32), log_probs=np.array(all_log_probs_concat, np.float32), S=np.array(S_sample_concat, int), mask=mask_for_loss.cpu().data.numpy(), chain_order=chain_list_list)
                 t1 = time.time()
                 dt = round(float(t1-t0), 4)
                 num_seqs = len(temperatures)*NUM_BATCHES*BATCH_COPIES
                 total_length = X.shape[1]
-                if print_all:
-                    print(f'{num_seqs} sequences of length {total_length} generated in {dt} seconds')
+                print(f'{num_seqs} sequences of length {total_length} generated in {dt} seconds')
    
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
-    argparser.add_argument("--suppress_print", type=int, default=0, help="0 for False, 1 for True")
-
-  
+ 
     argparser.add_argument("--ca_only", action="store_true", default=False, help="Parse CA-only structures and use CA-only models (default: false)")   
     argparser.add_argument("--path_to_model_weights", type=str, default="", help="Path to model weights folder;") 
+    argparser.add_argument("--device", type=str, default="1", help="CUDA device to use;") 
     argparser.add_argument("--model_name", type=str, default="v_48_020", help="ProteinMPNN model name: v_48_002, v_48_010, v_48_020, v_48_030; v_48_010=version with 48 edges 0.10A noise")
-    argparser.add_argument("--use_soluble_model", action="store_true", default=False, help="Flag to load ProteinMPNN weights trained on soluble proteins only.")
-
 
     argparser.add_argument("--seed", type=int, default=0, help="If set to 0 then a random seed will be picked;")
  
@@ -433,8 +392,6 @@ if __name__ == "__main__":
     argparser.add_argument("--save_probs", type=int, default=0, help="0 for False, 1 for True; save MPNN predicted probabilites per position")
 
     argparser.add_argument("--score_only", type=int, default=0, help="0 for False, 1 for True; score input backbone-sequence pairs")
-    argparser.add_argument("--path_to_fasta", type=str, default="", help="score provided input sequence in a fasta format; e.g. GGGGGG/PPPPS/WWW for chains A, B, C sorted alphabetically and separated by /")
-
 
     argparser.add_argument("--conditional_probs_only", type=int, default=0, help="0 for False, 1 for True; output conditional probabilities p(s_i given the rest of the sequence and backbone)")    
     argparser.add_argument("--conditional_probs_only_backbone", type=int, default=0, help="0 for False, 1 for True; if true output conditional probabilities p(s_i given backbone)") 

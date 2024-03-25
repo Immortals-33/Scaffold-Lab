@@ -10,15 +10,25 @@ import pandas as pd
 import sys
 import shutil
 import GPUtil
+import rootutils
+from pathlib import Path
 from typing import Optional, Dict
 from omegaconf import DictConfig, OmegaConf
 
 import esm
 from biotite.sequence.io import fasta
 
+path = rootutils.find_root(search_from='./', indicator=[".git", "setup.cfg"])
+rootutils.set_root(
+    path=path, # path to the root directory
+    project_root_env_var=True, # set the PROJECT_ROOT environment variable to root directory
+    dotenv=True, # load environment variables from .env if exists in root directory
+    pythonpath=True, # add root directory to the PYTHONPATH (helps with imports)
+    cwd=True, # change current working directory to the root directory (helps with filepaths)
+)
+
 from analysis import utils as au
 from data import structure_utils as su
-
 
 class Refolder:
 
@@ -133,32 +143,34 @@ class Refolder:
             Writes results in decoy_pdb_dir/sc_results.csv
         """
 
-        # Run PorteinMPNN
-        output_path = os.path.join(decoy_pdb_dir, "parsed_pdbs.jsonl")
+        # Run ProteinMPNN
+        
+        jsonl_path = os.path.join(decoy_pdb_dir, "parsed_pdbs.jsonl")
         process = subprocess.Popen([
             'python',
             f'{self._pmpnn_dir}/helper_scripts/parse_multiple_chains.py',
             f'--input_path={decoy_pdb_dir}',
-            f'--output_path={output_path}',
+            f'--output_path={jsonl_path}',
         ])
+        
         _ = process.wait()
         num_tries = 0
         ret = -1
         pmpnn_args = [
-            'python',
+            sys.executable,
             f'{self._pmpnn_dir}/protein_mpnn_run.py',
             '--out_folder',
             decoy_pdb_dir,
             '--jsonl_path',
-            output_path,
+            jsonl_path,
             '--num_seq_per_target',
             str(self._sample_conf.seq_per_sample),
             '--sampling_temp',
             '0.1',
             '--seed',
-            self._rng,
+            '33',
             '--batch_size',
-            '10',
+            '1',
         ]
         if self._infer_conf.gpu_id is not None:
             pmpnn_args.append('--device')
@@ -267,7 +279,7 @@ class Refolder:
             f.write(output[0])
         return output, output_dict  
     
-@hydra.main(version_base=None, config_path="../config", config_name="self_consistency")
+@hydra.main(version_base=None, config_path="../../config", config_name="unconditional")
 def run(conf: DictConfig) -> None:
     
     print('Starting ProteinMPNN design and self-consistency......')
