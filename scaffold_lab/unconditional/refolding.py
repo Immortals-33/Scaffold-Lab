@@ -83,14 +83,18 @@ class Refolder:
         self._pmpnn_dir = self._infer_conf.pmpnn_dir
         self._sample_dir = self._infer_conf.backbone_pdb_dir
         
-        #Save config
-        config_path = os.path.join(self._output_dir, "self_consistency_conf.yaml")
+        # Save config
+        config_folder = os.path.basename(Path(self._output_dir))
+        config_path = os.path.join(self._output_dir, f"{config_folder}.yaml")
         with open(config_path, 'w') as f:
             OmegaConf.save(config=self._conf, f=f)
         self._log.info(f'Saving self-consistency config to {config_path}')
         
-        #Load models and experiment
-        self._folding_model = esm.pretrained.esmfold_v1().eval()
+        # Load models and experiment
+        if 'cuda' in self.device:
+            self._folding_model = esm.pretrained.esmfold_v1().eval()
+        elif self.device == 'cpu': # ESMFold is not supported for half-precision model when running on CPU
+            self._folding_model = esm.pretrained.esmfold_v1().float().eval()
         self._folding_model = self._folding_model.to(self.device)
     
     def run_sampling(self):
