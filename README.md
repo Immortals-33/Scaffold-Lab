@@ -2,7 +2,7 @@
 
 ***
 
-Official implementation for [**_Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework_**]([Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework | bioRxiv](https://www.biorxiv.org/content/10.1101/2024.02.10.579743v2)). 
+Official implementation for [**_Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework_**](https://www.biorxiv.org/content/10.1101/2024.02.10.579743v2). 
 
 > Note: This repository is currently **under development**. The complete code and data regards to the manuscript will be released soon. However, please feel free to raise any question or discussion either via [issue](https://github.com/Immortals-33/Scaffold-Lab/issues) or email <h2knight@sjtu.edu.cn>!
 
