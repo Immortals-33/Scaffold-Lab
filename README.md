@@ -2,13 +2,13 @@
 
 ***
 
-Official implementation for **_Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework_**. 
+Official implementation for [**_Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework_**]([Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework | bioRxiv](https://www.biorxiv.org/content/10.1101/2024.02.10.579743v2)). 
 
 > Note: This repository is currently **under development**. The complete code and data regards to the manuscript will be released soon. However, please feel free to raise any question or discussion either via [issue](https://github.com/Immortals-33/Scaffold-Lab/issues) or email <h2knight@sjtu.edu.cn>!
 
-## Description
 
-***
+
+## Description
 
 **_Scaffold-Lab_** is the first unified framework for evaluating different protein backbone generation methods.  
 
@@ -31,17 +31,33 @@ We present the benchmark for both unconditional generation and conditional gener
 
 
 
-## Contents
+## Table of Contents
 
-***
+* [Description](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#description)
+* [Installation](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#installation)
+* [Outline](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#outline)
+* [Usage](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#usage)
+  * [Unconditional Generation]([Usage](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#unconditional-generation-1))
 
-* [Description](https://github.com/Immortals-33/Scaffold-Lab#description)
-* [Usage](https://github.com/Immortals-33/Scaffold-Lab#usage)
-* [Outline](https://github.com/Immortals-33/Scaffold-Lab#outline)
+
+
+
+## Installation
+
+To quickly set up an environment, just simply run:
+
+```bash
+conda create -f scaffold-lab.yml
+source activate scaffold-lab
+# You may also need to install some dependencies manually in certain cases
+pip install hydra-core --upgrade
+pip install hydra-joblib-launcher --upgrade
+pip install ml-collections GPUtil hjson h5py
+```
+
+
 
 ## Outline
-
-***
 
 Here is a guide about how you can go through this repository. We aim to provide an easy-to-use evaluation pipeline as well as maximize the utility of individual scripts. Let's go through the structure of this repository as a start:
 
@@ -55,7 +71,6 @@ Here is a guide about how you can go through this repository. We aim to provide 
 
 
 ## Usage
-***
 ### Unconditional Generation
 
 Let's start by running a simple evaluation here: 
@@ -65,3 +80,4 @@ python scaffold_lab/unconditional/refolding.py
 ```
 
  This performs a simple refolding analysis for the proteins we put inside `demo/unconditional/`.
+
