@@ -1,0 +1,22 @@
+# Configuration for running self-consitency evaluation on motif-scaffolding task by running ProteinMPNN and ESMFold.
+defaults:
+  - motif-scaffolding
+
+inference:
+  name: null
+  gpu_id: 0  # CUDA GPU to use
+  seed: 2
+
+  # Directory of software, weights, and outputs.
+  backbone_pdb_dir: ./demo/motif_scaffolding/2KL8/
+  pmpnn_dir: ./tools/ProteinMPNN/
+  output_dir: ./outputs/
+  motif_csv_dir: /dssg/home/acct-clschf/clschf/zb/gpdl/gpdl_motif_data_all.csv
+  input_pdbs_dir: ./demo/motif_scaffolding/reference_pdbs/
+  
+  # Setting of ProteinMPNN
+  CA_only: False
+
+  samples:
+    # Number of ESMFold samples per backbone sample.
+    seq_per_sample: 10

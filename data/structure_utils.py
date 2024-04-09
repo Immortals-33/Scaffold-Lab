@@ -86,13 +86,13 @@ def parse_pdb_feats(
 
 def parse_chain_feats(chain_feats, scale_factor=1.):
     ca_idx = residue_constants.atom_order['CA'] # 1
-    chain_feats['bb_mask'] = chain_feats['atom_mask'][:, ca_idx] # backbone mask 只考虑CA
-    bb_pos = chain_feats['atom_positions'][:, ca_idx] # 提取backbone(CA)坐标
-    bb_center = np.sum(bb_pos, axis=0) / (np.sum(chain_feats['bb_mask']) + 1e-5) #计算骨架中心坐标 (先求和，再除以CA数量)
-    centered_pos = chain_feats['atom_positions'] - bb_center[None, None, :] # 骨架中心化(将所有CA减去中心坐标)
+    chain_feats['bb_mask'] = chain_feats['atom_mask'][:, ca_idx] 
+    bb_pos = chain_feats['atom_positions'][:, ca_idx] # 
+    bb_center = np.sum(bb_pos, axis=0) / (np.sum(chain_feats['bb_mask']) + 1e-5)
+    centered_pos = chain_feats['atom_positions'] - bb_center[None, None, :]
     scaled_pos = centered_pos / scale_factor 
-    chain_feats['atom_positions'] = scaled_pos * chain_feats['atom_mask'][..., None] # 更新所有原子的坐标
-    chain_feats['bb_positions'] = chain_feats['atom_positions'][:, ca_idx] # 更新骨架原子坐标
+    chain_feats['atom_positions'] = scaled_pos * chain_feats['atom_mask'][..., None]
+    chain_feats['bb_positions'] = chain_feats['atom_positions'][:, ca_idx]
     return chain_feats
 
 

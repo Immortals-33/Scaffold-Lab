@@ -43,6 +43,7 @@ class Refolder:
     One can also modify this script to perform fixed backbone design and evaluations on refoldability.
     Adapted from https://github.com/jasonkyuyim/se3_diffusion/blob/master/experiments/inference_se3_diffusion.py
     """
+    
     def __init__(
         self,
         conf:DictConfig,
@@ -55,7 +56,6 @@ class Refolder:
         
         self._conf = conf
         self._infer_conf = conf.inference
-        #self._metric_conf = self._infer_conf.metrics
         self._sample_conf = self._infer_conf.samples
         
         self._rng = np.random.default_rng(self._infer_conf.seed)
@@ -82,6 +82,7 @@ class Refolder:
         os.makedirs(self._output_dir, exist_ok=True)
         self._pmpnn_dir = self._infer_conf.pmpnn_dir
         self._sample_dir = self._infer_conf.backbone_pdb_dir
+        self._CA_only = self._infer_conf.CA_only
         
         # Save config
         config_folder = os.path.basename(Path(self._output_dir))
@@ -179,6 +180,9 @@ class Refolder:
         if self._infer_conf.gpu_id is not None:
             pmpnn_args.append('--device')
             pmpnn_args.append(str(self._infer_conf.gpu_id))
+        if self.CA_only == True:
+            pmpnn_args.append('--ca_only')
+        
         while ret < 0:
             try:
                 process = subprocess.Popen(

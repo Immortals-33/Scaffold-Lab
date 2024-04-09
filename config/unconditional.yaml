@@ -5,12 +5,15 @@ defaults:
 inference:
   name: unconditional
   gpu_id: 0  # CUDA GPU to use
-  seed: 2
+  seed: 33
 
-  # Directory of software, weights, and outputs.
+  # Directory of backbones, ProteinMPNN, and outputs.
   backbone_pdb_dir: ./demo/unconditional/
   pmpnn_dir: ./tools/ProteinMPNN/
   output_dir: ./outputs/
+  
+  # Setting of ProteinMPNN
+  CA_only: False
 
   samples:
     # Number of ESMFold samples per backbone sample.
