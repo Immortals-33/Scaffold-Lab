@@ -12,7 +12,7 @@ import shutil
 import GPUtil
 import rootutils
 from pathlib import Path
-from typing import Optional, Dict
+from typing import *
 from omegaconf import DictConfig, OmegaConf
 
 import esm
@@ -29,6 +29,7 @@ rootutils.set_root(
 
 from analysis import utils as au
 from data import structure_utils as su
+
 
 class Refolder:
 
@@ -115,7 +116,7 @@ class Refolder:
             print(f'pdb_file:{pdb_file}')
             print(f'backbone_dir:{backbone_dir}')
             shutil.copy2(os.path.join(self._sample_dir, pdb_file), backbone_dir)
-            print(f'copied {pdb_file} to {backbone_dir}')
+            self._log.info(f'copied {pdb_file} to {backbone_dir}')
             
             #seperate_pdb_folder = os.path.join(backbone_dir, backbone_name)
             pdb_path = os.path.join(backbone_dir, pdb_file)
@@ -278,7 +279,10 @@ class Refolder:
         mpnn_results.to_csv(csv_path)
 
     def run_folding(self, sequence, save_path):
-        """Run ESMFold on sequence."""
+        """
+        Run ESMFold on sequence.
+        TBD: Add options for OmegaFold and AlphaFold2.
+        """
         with torch.no_grad():
             output = self._folding_model.infer(sequence)
             output_dict = {key: value.cpu() for key, value in output.items()}
@@ -290,7 +294,7 @@ class Refolder:
 @hydra.main(version_base=None, config_path="../../config", config_name="unconditional")
 def run(conf: DictConfig) -> None:
     
-    print('Starting ProteinMPNN design and self-consistency......')
+    print('Starting refolding for unconditional generation......')
     start_time = time.time()
     refolder = Refolder(conf)
     refolder.run_sampling()

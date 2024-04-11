@@ -1,6 +1,6 @@
 # Configuration for running self-consitency evaluation on motif-scaffolding task by running ProteinMPNN and ESMFold.
 defaults:
-  - motif-scaffolding
+  - override hydra/launcher: joblib
 
 inference:
   name: null
@@ -11,7 +11,7 @@ inference:
   backbone_pdb_dir: ./demo/motif_scaffolding/2KL8/
   pmpnn_dir: ./tools/ProteinMPNN/
   output_dir: ./outputs/
-  motif_csv_dir: /dssg/home/acct-clschf/clschf/zb/gpdl/gpdl_motif_data_all.csv
+  motif_csv_dir: ./demo/motif_scaffolding/motif_info.csv
   input_pdbs_dir: ./demo/motif_scaffolding/reference_pdbs/
   
   # Setting of ProteinMPNN

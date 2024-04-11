@@ -29,6 +29,8 @@ We present the benchmark for both unconditional generation and conditional gener
 - *RFdiffusion*: [Paper](https://www.nature.com/articles/s41586-023-06415-8) | [Code](https://github.com/RosettaCommons/RFdiffusion)
 - *Chroma*: [Paper](https://www.nature.com/articles/s41586-023-06728-8) | [Code](https://github.com/generatebio/chroma)
 
+***
+
 
 
 ## Table of Contents
@@ -68,6 +70,8 @@ Here is a guide about how you can go through this repository. We aim to provide 
   * Inside the `experiment` folder we provide scripts for performing motif-scaffolding experiments by *Chroma* using its `SubstrctureConditioner`. Refer the script for detailed information if you want.
 * `config`: We place different configuration settings of [Hydra](https://github.com/facebookresearch/hydra) here to organize for evaluations. **Hydra** is a hierarchical configuration framework to help users systematize different experimental settings. Though it might be confusing when you first get in touch with it, it is a powerful tool to help you perform experiments efficiently with different combinations of parameters, for example, _the number of sequences to generate_. We recommend readers to [Docs](https://hydra.cc/docs/intro/) for advanced usage.
 
+***
+
 
 
 ## Usage
@@ -81,3 +85,12 @@ python scaffold_lab/unconditional/refolding.py
 
  This performs a simple refolding analysis for the proteins we put inside `demo/unconditional/`.
 
+### Conditional Generation (Motif-scaffolding)
+
+To run a minimal version on motif-scaffolding task, simply run:
+
+```bash
+python scaffold_lab/motif_scaffolding/motif_refolding.py
+```
+
+This performs a evaluation on `demo/motif_scaffolding/2KL8/` where the outputs would be saved under `outputs/2KL8/`.
