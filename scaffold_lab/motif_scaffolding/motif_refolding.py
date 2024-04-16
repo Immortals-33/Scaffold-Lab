@@ -176,8 +176,8 @@ class Refolder:
                 design_pdb = os.path.join(self._sample_dir, pdb_file)
                 
                 # Extract motif and calculate motif-RMSD
-                reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="CA")
-                design_motif = au.motif_extract(design_contig, design_pdb, atom_part="CA")
+                reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
+                design_motif = au.motif_extract(design_contig, design_pdb, atom_part="backbone")
                 rms = au.rmsd(reference_motif, design_motif)
                 
                 # Save outputs
@@ -210,7 +210,9 @@ class Refolder:
                         pdb_path,
                         motif_mask=np.array(eval(mask)),
                         motif_indices=motif_indices,
-                        rms=rms
+                        rms=rms,
+                        ref_motif=reference_motif,
+                        sample_contig=design_contig
                     )
                 self._log.info(f'Done sample: {pdb_path}')
     
@@ -221,7 +223,9 @@ class Refolder:
             motif_mask: Optional[np.ndarray]=None,
             motif_indices: Optional[List]=None,
             rms: Optional[float]=None,
-            complex_motif: Optional[List]=None
+            complex_motif: Optional[List]=None,
+            ref_motif=None,
+            sample_contig=None
             ):
         """Run self-consistency on design proteins against reference protein.
         
@@ -335,11 +339,12 @@ class Refolder:
             'ptm': [],
             'plddt': [],
             'length': [],
-            'backbone_motif_rmsd': []
+            'backbone_motif_rmsd': [],
+            'motif_rmsd': []
         }
         if motif_mask is not None:
             # Only calculate motif RMSD if mask is specified.
-            mpnn_results['motif_rmsd'] = []
+            mpnn_results['refold_motif_rmsd'] = []
         esmf_dir = os.path.join(decoy_pdb_dir, 'esmf')
         os.makedirs(esmf_dir, exist_ok=True)
         fasta_seqs = fasta.FastaFile.read(mpnn_fasta_path)
@@ -353,7 +358,10 @@ class Refolder:
             _, full_output = self.run_folding(string, esmf_sample_path)
             esmf_feats = su.parse_pdb_feats('folded_sample', esmf_sample_path)
             sample_seq = su.aatype_to_seq(sample_feats['aatype'])
-
+            
+            esm_predict_motif = au.motif_extract(sample_contig, esmf_sample_path, atom_part="backbone")
+            motif_rmsd = au.rmsd(ref_motif, esm_predict_motif)
+            mpnn_results['motif_rmsd'].append(f'{motif_rmsd:.3f}')
             # Calculate scTM of ESMFold outputs with reference protein
             _, tm_score = su.calc_tm_score(
                 sample_feats['bb_positions'], esmf_feats['bb_positions'],
@@ -366,9 +374,9 @@ class Refolder:
             if motif_mask is not None:
                 sample_motif = sample_feats['bb_positions'][motif_mask]
                 of_motif = esmf_feats['bb_positions'][motif_mask]
-                motif_rmsd = su.calc_aligned_rmsd(
+                refold_motif_rmsd = su.calc_aligned_rmsd(
                     sample_motif, of_motif)
-                mpnn_results['motif_rmsd'].append(f'{motif_rmsd:.3f}')
+                mpnn_results['refold_motif_rmsd'].append(f'{refold_motif_rmsd:.3f}')
             if rms is not None:
                 mpnn_results['backbone_motif_rmsd'].append(f'{rms:.3f}')
             mpnn_results['rmsd'].append(f'{rmsd:.3f}')
