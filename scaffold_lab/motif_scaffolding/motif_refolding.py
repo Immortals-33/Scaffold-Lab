@@ -373,9 +373,9 @@ class Refolder:
             plddt = full_output['mean_plddt'].item()
             if motif_mask is not None:
                 sample_motif = sample_feats['bb_positions'][motif_mask]
-                of_motif = esmf_feats['bb_positions'][motif_mask]
+                esm_motif = esmf_feats['bb_positions'][motif_mask]
                 refold_motif_rmsd = su.calc_aligned_rmsd(
-                    sample_motif, of_motif)
+                    sample_motif, esm_motif)
                 mpnn_results['refold_motif_rmsd'].append(f'{refold_motif_rmsd:.3f}')
             if rms is not None:
                 mpnn_results['backbone_motif_rmsd'].append(f'{rms:.3f}')

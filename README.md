@@ -39,10 +39,10 @@ We present the benchmark for both unconditional generation and conditional gener
 * [Installation](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#installation)
 * [Outline](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#outline)
 * [Usage](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#usage)
-  * [Unconditional Generation]([Usage](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#unconditional-generation-1))
+  * [Unconditional Generation](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#unconditional-generation-1)
+  * [Conditional Generation (Motif-scaffolding)](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#conditional-generation-motif-scaffolding)
 
-
-
+***
 
 ## Installation
 
@@ -58,6 +58,8 @@ pip install ml-collections GPUtil hjson h5py
 ```
 
 
+
+***
 
 ## Outline
 
@@ -84,6 +86,8 @@ python scaffold_lab/unconditional/refolding.py
 ```
 
  This performs a simple refolding analysis for the proteins we put inside `demo/unconditional/`.
+
+***
 
 ### Conditional Generation (Motif-scaffolding)
 
