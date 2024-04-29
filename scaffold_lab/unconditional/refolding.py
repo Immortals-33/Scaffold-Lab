@@ -181,7 +181,7 @@ class Refolder:
         if self._infer_conf.gpu_id is not None:
             pmpnn_args.append('--device')
             pmpnn_args.append(str(self._infer_conf.gpu_id))
-        if self.CA_only == True:
+        if self._CA_only == True:
             pmpnn_args.append('--ca_only')
         
         while ret < 0:
