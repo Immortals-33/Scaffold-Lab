@@ -109,4 +109,4 @@ This performs a evaluation on `demo/motif_scaffolding/2KL8/` where the outputs w
 
 ## Acknowledgments
 
-This codebase benefits a lot from [FrameDiff](https://github.com/jasonkyuyim/se3_diffusion), [OpenFold](https://github.com/aqlaboratory/openfold) and some other amazing open-source projects. Take a look at their work if you find Scaffold-Lab is helpful!
+This codebase benefits a lot from [FrameDiff](https://github.com/jasonkyuyim/se3_diffusion), [OpenFold](https://github.com/aqlaboratory/openfold) and some other amazing open-source projects. Take a look at their work if you find Scaffold-Lab helpful!
