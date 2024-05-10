@@ -39,6 +39,8 @@ We present the benchmark for both unconditional generation and conditional gener
 * [Usage](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#usage)
   * [Unconditional Generation](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#unconditional-generation-1)
   * [Conditional Generation (Motif-scaffolding)](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#conditional-generation-motif-scaffolding)
+* [Contact](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#contact)
+* [Acknowledgements](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#acknowledgments)
 
 ***
 
@@ -107,4 +109,4 @@ This performs a evaluation on `demo/motif_scaffolding/2KL8/` where the outputs w
 
 ## Acknowledgments
 
-This codebase benefits a lot from [FrameDiff]((https://github.com/jasonkyuyim/se3_diffusion)) and [OpenFold](https://github.com/aqlaboratory/openfold) and some other open-source projects. Take a look at their work if you find Scaffold-Lab is helpful!
+This codebase benefits a lot from [FrameDiff](https://github.com/jasonkyuyim/se3_diffusion), [OpenFold](https://github.com/aqlaboratory/openfold) and some other amazing open-source projects. Take a look at their work if you find Scaffold-Lab is helpful!
