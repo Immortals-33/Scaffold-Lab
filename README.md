@@ -2,9 +2,7 @@
 
 ***
 
-Official implementation for [**_Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework_**](https://www.biorxiv.org/content/10.1101/2024.02.10.579743v2). 
-
-> Note: This repository is currently **under development**. The complete code and data regards to the manuscript will be released soon. However, please feel free to raise any question or discussion either via [issue](https://github.com/Immortals-33/Scaffold-Lab/issues) or email <h2knight@sjtu.edu.cn>!
+Official implementation for [**_Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework_**](https://www.biorxiv.org/content/10.1101/2024.02.10.579743v3). 
 
 
 
@@ -98,3 +96,15 @@ python scaffold_lab/motif_scaffolding/motif_refolding.py
 ```
 
 This performs a evaluation on `demo/motif_scaffolding/2KL8/` where the outputs would be saved under `outputs/2KL8/`.
+
+
+
+## Contact
+
+* h2knight@sjtu.edu.cn
+
+
+
+## Acknowledgments
+
+This codebase benefits a lot from [FrameDiff]((https://github.com/jasonkyuyim/se3_diffusion)) and [OpenFold](https://github.com/aqlaboratory/openfold) and some other open-source projects. Take a look at their work if you find Scaffold-Lab is helpful!
