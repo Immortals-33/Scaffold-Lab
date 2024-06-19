@@ -35,7 +35,7 @@ We present the benchmark for both unconditional generation and conditional gener
 
   > [!NOTE]
   >
-  > > 
+  > > This is a beta version which has not been tested thoroughly. Bug reports and pull requests are especially welcomed.
 
 ***
 
@@ -49,6 +49,9 @@ We present the benchmark for both unconditional generation and conditional gener
 * [Usage](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#usage)
   * [Unconditional Generation](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#unconditional-generation-1)
   * [Conditional Generation (Motif-scaffolding)](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#conditional-generation-motif-scaffolding)
+  * [Customize Methods for Structure Prediction](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#customize-methods-for-structure-prediction)
+    * [ESMFold](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#esmfold)
+    * [AlphaFold2 (single-chain version)](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#alphafold2-single-chain-version)
 * [Contact](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#contact)
 * [Acknowledgements](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#acknowledgments)
 
@@ -115,9 +118,13 @@ This performs a evaluation on `demo/motif_scaffolding/2KL8/` where the outputs w
 
 We support both AlphaFold2 (single-sequence version) and ESMFold for structure prediction during refolding. 
 
+***
+
 #### ESMFold
 
 Scaffold-Lab performs evaluation using **ESMFold** by default. Once you set up the environment this should work. 
+
+***
 
 #### AlphaFold2 (single-chain version)
 
