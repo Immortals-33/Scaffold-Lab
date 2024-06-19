@@ -29,6 +29,16 @@ We present the benchmark for both unconditional generation and conditional gener
 
 ***
 
+## Updates
+
+* _**June 19th, 2024**_ : Scaffold-Lab now supports AlphaFold2 for evaluation! The implementation of AF2 is built upon [LocalColabFold](https://github.com/YoshitakaMo/localcolabfold). We refer interested users to [here](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#alphaFold2-single-chain-version)) for more details. 
+
+  > [!NOTE]
+  >
+  > > 
+
+***
+
 
 
 ## Table of Contents
@@ -99,14 +109,74 @@ python scaffold_lab/motif_scaffolding/motif_refolding.py
 
 This performs a evaluation on `demo/motif_scaffolding/2KL8/` where the outputs would be saved under `outputs/2KL8/`.
 
+***
 
+### Customize Methods for Structure Prediction
+
+We support both AlphaFold2 (single-sequence version) and ESMFold for structure prediction during refolding. 
+
+#### ESMFold
+
+Scaffold-Lab performs evaluation using **ESMFold** by default. Once you set up the environment this should work. 
+
+#### AlphaFold2 (single-chain version)
+
+The implementation of **AlphaFold2** is based on [LocalColabFold](https://github.com/YoshitakaMo/localcolabfold), which is a local version of [ColabFold](https://github.com/sokrypton/ColabFold). We provide a brief guideline for enabling using AlphaFold2 during evaluation:
+
+* **Install [LocalColabFold](https://github.com/YoshitakaMo/localcolabfold)**. Please follow the installation guide on its official page based on your specific OS. Note that it might take a few tries for a complete installation. 
+
+* **Export executable ColabFold into your PATH.** This enables the running of ColabFold during the refolding pipeline. Suppose the root directory of your [LocalColabFold](https://github.com/YoshitakaMo/localcolabfold) is `{LocalColabFold}`, then you can export variable PATH in two ways:
+
+  * Set up inside the config **(Recommended)**.  Specifically, two ways to do so:
+
+    * Inside `config/unconditional.yaml` and `config/motif_scaffolding.yaml` **(Recommended)**:
+
+      ```yaml
+      inference:
+        af2:
+          executive_colabfold_path: {LocalColabFold}/colabfold-conda/bin # Replace {LocalColabFold} by your actual path of LocalColabFold
+      ```
+
+    * Alternatively, set this in a command-line way:
+
+      ```bash
+      python scaffold_lab/unconditional/refolding.py inference.af2.executive_colabfold_path='{LocalColabFold}/colabfold-conda-bin'
+      ```
+
+  * Direct set variable PATH before running evaluation script, which is similarily done in #5 inside [this guide](https://github.com/YoshitakaMo/localcolabfold#for-linux). 
+  
+* **Set AlphaFold2 as your forward folding method when running evaluation**. Inside the config:
+
+  ```yaml
+  inference:
+  ...
+    predict_method: [AlphaFold2] # Only run AF2 for evaluation
+    predict_method: [AlphaFold2, ESMFold] # Run both AF2 and ESMFold for evaluation
+  ...
+  ```
+
+And voilà!
 
 ## Contact
 
 * h2knight@sjtu.edu.cn
 
+## Citation
+
+If you find use Scaffold-Lab in your research or find it helpful, please cite:
+
+```tex
+@article{zheng2024scaffoldlab,
+title = {Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework},
+author = {Zhuoqi, Zheng and Bo, Zhang and Bozitao, Zhong and Kexin, Liu and Zhengxin, Li and Junjie, Zhu and Jinyu, Yu and Ting, Wei and Haifeng, Chen},
+year = {2024},
+journal = {bioRxiv},
+url = {https://www.biorxiv.org/content/10.1101/2024.02.10.579743v3}
+}
+```
+
 
 
 ## Acknowledgments
 
-This codebase benefits a lot from [FrameDiff](https://github.com/jasonkyuyim/se3_diffusion), [OpenFold](https://github.com/aqlaboratory/openfold) and some other amazing open-source projects. Take a look at their work if you find Scaffold-Lab helpful!
+This codebase benefits a lot from [FrameDiff](https://github.com/jasonkyuyim/se3_diffusion), [OpenFold](https://github.com/aqlaboratory/openfold) and some other amazing open-source projects. Take a look at their work if you find Scaffold-Lab is helpful!

@@ -4,7 +4,10 @@ import subprocess
 import typing as T
 import random
 import shutil
+import json
+import logging
 from typing import *
+from pathlib import Path
 
 import mdtraj as md
 import MDAnalysis as mda
@@ -16,8 +19,10 @@ import biotite.application.dssp as dssp
 from biotite.structure.residues import get_residues
 from biotite.structure import get_chains
 from biotite.sequence import ProteinSequence
+from biotite.sequence.io import fasta
 from tmtools import tm_align
 
+log = logging.getLogger(__name__)
 
 def motif_extract(
     position: str,
@@ -51,7 +56,8 @@ def motif_extract(
             start = end = int(i)
         else:
             start, end = i.split("-")
-            print(start, end)
+            #print(start, end)
+            log.info(f'Motif position from {start} to {end}')
             start, end = int(start), int(end)
             
         if atom_part == "all-atom":
@@ -253,3 +259,53 @@ def randomly_select_and_copy_pdb_files(src_folder, dst_folder, num_files):
     # Copy each selected file to the destination folder
     for file in selected_files:
         shutil.copy(os.path.join(src_folder, file), os.path.join(dst_folder, file))
+
+def cleanup_af2_outputs(
+    af2_dir: Union[str, Path],
+    path_to_store: Union[str, Path],
+    remove_after_cleanup: Optional = False
+) -> Dict:
+
+    output_dict = {}
+    for file in os.listdir(af2_dir):
+        if file.endswith('.pdb'):
+            if file.startswith('T_0') == False: # original backbone sequence
+                new_path = os.path.join(path_to_store, 'sample_0.pdb')
+                shutil.copy2(os.path.join(af2_dir, file), new_path)
+                output_dict['sample_0'] = {}
+                output_dict['sample_0']['sample_path'] = os.path.abspath(new_path)
+            else: # Designed sequence
+                sample_index = os.path.splitext(file)[0].split('sample_')[1].split('__score')[0]
+                new_path = os.path.join(path_to_store, f'sample_{sample_index}.pdb')
+                shutil.copy2(os.path.join(af2_dir, file), new_path)
+                if f'sample_{sample_index}' not in output_dict:
+                    output_dict[f'sample_{sample_index}'] = {}
+                output_dict[f'sample_{sample_index}']['sample_path'] = os.path.abspath(new_path)
+        elif file.endswith('.json') and 'rank' in file: # file storing pLDDT & pTM & pAE
+            if file.startswith('T_0'):
+                sample_index = os.path.splitext(file)[0].split('sample_')[1].split('__score')[0]
+                if f'sample_{sample_index}' not in output_dict:
+                    output_dict[f'sample_{sample_index}'] = {}
+                with open(os.path.join(af2_dir, file), 'r') as f:
+                    j = json.load(f)
+                    output_dict[f'sample_{sample_index}']['plddt'] = np.mean(j['plddt'])
+                    output_dict[f'sample_{sample_index}']['pae'] = np.mean(j['pae'])
+                    output_dict[f'sample_{sample_index}']['ptm'] = np.mean(j['ptm'])
+            else: # original backbone sequence
+                if 'sample_0' not in output_dict:
+                    output_dict['sample_0'] = {}
+                with open(os.path.join(af2_dir, file), 'r') as f:
+                    j = json.load(f)
+                    output_dict['sample_0']['plddt'] = np.mean(j['plddt'])
+                    output_dict['sample_0']['pae'] = np.mean(j['pae'])
+                    output_dict['sample_0']['ptm'] = np.mean(j['ptm'])
+    return output_dict
+
+def write_seqs_to_fasta(
+    input_seqs: Union[list],
+    fasta_path: Union[str, Path]
+) -> None:
+    fasta_instance = fasta.FastaFile()
+    for i, (mpnn_score, header, string) in enumerate(input_seqs):
+        fasta_instance[header] = string
+    fasta_instance.write(fasta_path)

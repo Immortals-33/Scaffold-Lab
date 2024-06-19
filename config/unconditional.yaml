@@ -18,3 +18,17 @@ inference:
   samples:
     # Number of ESMFold samples per backbone sample.
     seq_per_sample: 10
+    sort_by_score: True
+
+  predict_method: [ESMFold]
+
+  af2:
+    executive_colabfold_path: path/to/your/executable_localcolabfold
+    recycle: 10
+    seed: 33
+    model_type: alphafold2_ptm # {auto, alphafold2, alphafold2_multimer_{v1-v3}, deepfold_v1}
+    num_models: 1 # {1,2,3,4,5}
+    use_amber_relax: False
+    num_relax: 3
+    use_gpu_relax: False
+    rank: ptm # {auto, plddt, ptm, iptm, multimer}
