@@ -31,7 +31,7 @@ We present the benchmark for both unconditional generation and conditional gener
 
 ## Updates
 
-* _**June 19th, 2024**_ : Scaffold-Lab now supports AlphaFold2 for evaluation! The implementation of AF2 is built upon [LocalColabFold](https://github.com/YoshitakaMo/localcolabfold). We refer interested users to [here](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#alphaFold2-single-chain-version)) for more details. 
+* _**June 19th, 2024**_ : Scaffold-Lab now supports AlphaFold2 for evaluation! The implementation of AF2 is built upon [LocalColabFold](https://github.com/YoshitakaMo/localcolabfold). We refer interested users to [here](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#alphaFold2-single-chain-version) for more details. 
 
   > [!NOTE]
   >
@@ -118,13 +118,13 @@ This performs a evaluation on `demo/motif_scaffolding/2KL8/` where the outputs w
 
 We support both AlphaFold2 (single-sequence version) and ESMFold for structure prediction during refolding. 
 
-***
+
 
 #### ESMFold
 
 Scaffold-Lab performs evaluation using **ESMFold** by default. Once you set up the environment this should work. 
 
-***
+
 
 #### AlphaFold2 (single-chain version)
 
@@ -164,13 +164,17 @@ The implementation of **AlphaFold2** is based on [LocalColabFold](https://github
 
 And voilà!
 
+***
+
 ## Contact
 
 * h2knight@sjtu.edu.cn
 
+***
+
 ## Citation
 
-If you find use Scaffold-Lab in your research or find it helpful, please cite:
+If you use Scaffold-Lab in your research or find it helpful, please cite:
 
 ```tex
 @article{zheng2024scaffoldlab,
@@ -182,7 +186,7 @@ url = {https://www.biorxiv.org/content/10.1101/2024.02.10.579743v3}
 }
 ```
 
-
+***
 
 ## Acknowledgments
 
