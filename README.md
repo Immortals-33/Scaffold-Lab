@@ -35,7 +35,7 @@ We present the benchmark for both unconditional generation and conditional gener
 
   > [!NOTE]
   >
-  > > This is a beta version which has not been tested thoroughly. Bug reports and pull requests are especially welcomed.
+  > This is a **beta** version which has not been tested thoroughly. Bug reports and pull requests are especially welcomed.
 
 ***
 
