@@ -34,7 +34,6 @@ We present the benchmark for both unconditional generation and conditional gener
 * _**June 19th, 2024**_ : Scaffold-Lab now supports AlphaFold2 for evaluation! The implementation of AF2 is built upon [LocalColabFold](https://github.com/YoshitakaMo/localcolabfold). We refer interested users to [here](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#alphaFold2-single-chain-version) for more details. 
 
   > [!NOTE]
-  >
   > This is a **beta** version which has not been tested thoroughly. Bug reports and pull requests are especially welcomed.
 
 ***
