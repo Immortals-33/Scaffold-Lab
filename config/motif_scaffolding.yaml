@@ -18,8 +18,9 @@ inference:
   CA_only: False
 
   samples:
-    # Number of ESMFold samples per backbone sample.
+    # Number of ProteinMPNN sequences sampled per backbone.
     seq_per_sample: 10
+    mpnn_batch_size: 1
     sort_by_score: False
 
   predict_method: [ESMFold]

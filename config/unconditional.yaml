@@ -18,6 +18,7 @@ inference:
   samples:
     # Number of ESMFold samples per backbone sample.
     seq_per_sample: 10
+    mpnn_batch_size: 1
     sort_by_score: True
 
   predict_method: [ESMFold]
