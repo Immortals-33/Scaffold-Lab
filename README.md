@@ -31,6 +31,7 @@ We present the benchmark for both unconditional generation and conditional gener
 
 ## Updates
 
+* **_July 19th, 2024_**: We now enable motif positions to be partially redesigned with ProteinMPNN. Check out [here](https://github.com/Immortals-33/Scaffold-Lab/blob/main/demo/motif_scaffolding/motif_info.csv) to see the way of specification.
 * _**June 19th, 2024**_ : Scaffold-Lab now supports AlphaFold2 for evaluation! The implementation of AF2 is built upon [LocalColabFold](https://github.com/YoshitakaMo/localcolabfold). We refer interested users to [here](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#alphaFold2-single-chain-version) for more details. 
 
 > [!NOTE]  

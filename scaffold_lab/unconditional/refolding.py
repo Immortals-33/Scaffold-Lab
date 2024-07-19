@@ -1,3 +1,15 @@
+"""
+Main script for refolding pipeline on unconditional generation.
+The refolding pipeline use ESMFold as default.
+
+To run AlphaFold2: 
+> python scaffold_lab/unconditional/refolding.py inference.predict_method='AlphaFold2'
+
+To run ESMFold and AlphaFold2 simultaneously:
+> python scaffold_lab/unconditional/refolding.py inference.predict_method='[AlphaFold2, ESMFold]'
+
+"""
+
 import os
 import tree
 import time
@@ -89,7 +101,8 @@ class Refolder:
             current_path = os.environ.get('PATH', '')
             os.environ['PATH'] = colabfold_path + ":" + current_path
             if self.device == 'cpu':
-                raise ValueError("Only GPU supported for AlphaFold2 currently.")
+                #raise ValueError("Only GPU supported for AlphaFold2 currently.")
+                self._log.info(f"You're running AlphaFold2 on {self.device}.")
         
         
         # Set-up directories
@@ -233,7 +246,8 @@ class Refolder:
             'ptm': [],
             'plddt': [],
             'length': [],
-            'mpnn_score': []
+            'mpnn_score': [],
+            'sample_idx': []
         }
         if motif_mask is not None:
             # Only calculate motif RMSD if mask is specified.
@@ -310,12 +324,14 @@ class Refolder:
                 mpnn_results['plddt'].append(f'{plddt:.3f}')
                 mpnn_results['length'].append(len(string))
                 mpnn_results['mpnn_score'].append(f'{score:.3f}')
+                mpnn_results['sample_idx'].append(int(idx))
 
             # Save results to CSV
             esm_csv_path = os.path.join(decoy_pdb_dir, 'esm_eval_results.csv')
             mpnn_results = pd.DataFrame(mpnn_results)
-            esm_columns = ['sample_idx'] + [c for c in mpnn_results.columns if c != 'sample_idx']
-            mpnn_results = mpnn_results.reindex(columns=esm_columns)
+            #esm_columns = ['sample_idx'] + [c for c in mpnn_results.columns if c != 'sample_idx']
+            #mpnn_results = mpnn_results.reindex(columns=esm_columns)
+            mpnn_results.sort_values('sample_idx', inplace=True)
             mpnn_results.to_csv(esm_csv_path, index=False)
 
         # Run AF2
@@ -360,27 +376,26 @@ class Refolder:
                 af2_outputs[f'sample_{idx}']['sequence'] = string
                 af2_outputs[f'sample_{idx}']['length'] = len(string)
                 af2_outputs[f'sample_{idx}']['mpnn_score'] = f'{score:.3f}'
-                #af2_outputs[f'sample_{i}']['mpnn_score'] = 
+                af2_outputs[f'sample_{idx}']['sample_idx'] = int(idx)
             print(f'final_outputs: {af2_outputs}')
             af2_csv_path = os.path.join(decoy_pdb_dir, 'af2_eval_results.csv')
             af2_df = pd.DataFrame.from_dict(af2_outputs, orient='index')
             af2_df.reset_index(inplace=True)
             af2_df.rename(columns={'index': 'sample'}, inplace=True)
             af2_df.drop('sample', axis=1, inplace=True)
-            af2_df['sample_idx'] = af2_df['sample_idx'].astype(int)
-            af2_columns = ['sample_idx'] + [c for c in af2_df.columns if c != 'sample_idx']
-            af2_df = af2_df.reindex(columns=af2_columns)
+            #af2_df[f'sample_idx'] = af2_df[f'sample_idx'].astype(int)
+            #af2_columns = ['sample_idx'] + [c for c in af2_df.columns if c != 'sample_idx']
+            #af2_df = af2_df.reindex(columns=af2_columns)
             af2_df.sort_values('sample_idx', inplace=True)
             af2_df.to_csv(af2_csv_path, index=False)
 
-        if 'ESMFold' and 'AlphaFold2' in self._forward_folding:
+        if 'ESMFold' in self._forward_folding and 'AlphaFold2' in self._forward_folding:
             esm_results = pd.read_csv(esm_csv_path)
             af2_results = pd.read_csv(af2_csv_path)
             esm_results['folding_method'] = 'ESMFold'
             af2_results['folding_method'] = 'AlphaFold2'
             joint_results = pd.concat([esm_results, af2_results], ignore_index=True)
             joint_results.to_csv(os.path.join(decoy_pdb_dir, 'joint_eval_results.csv'), index=False)
-
 
 
 

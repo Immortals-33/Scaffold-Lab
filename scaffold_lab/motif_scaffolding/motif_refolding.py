@@ -1,3 +1,15 @@
+"""
+Main script for refolding pipeline on motif-scaffolding task.
+The refolding pipeline use ESMFold as default.
+
+To run AlphaFold2: 
+> python scaffold_lab/motif_scaffolding/motif_refolding.py inference.predict_method='AlphaFold2'
+
+To run ESMFold and AlphaFold2 simultaneously:
+> python scaffold_lab/motif_scaffolding/motif_refolding.py inference.predict_method='[AlphaFold2, ESMFold]'
+
+"""
+
 import os
 import tree
 import time
@@ -91,7 +103,7 @@ class Refolder:
             current_path = os.environ.get('PATH', '')
             os.environ['PATH'] = colabfold_path + ":" + current_path
             if self.device == 'cpu':
-                raise ValueError("Only GPU supported for AlphaFold2 currently.")
+                self._log.info(f"You're running AlphaFold2 on {self.device}.")
         # Set-up directories
         output_dir = self._infer_conf.output_dir
 
@@ -119,56 +131,6 @@ class Refolder:
             self._folding_model = esm.pretrained.esmfold_v1().float().eval()
         self._folding_model = self._folding_model.to(self.device)
         
-
-    def get_csv_data(
-        self,
-        csv_info: pd.DataFrame,
-        pdb_name: str,
-        sample_num: Union[str, int]
-    ):
-        csv_info = pd.read_csv(csv_info)
-        csv_info['sample_num'] = csv_info['sample_num'].astype(int)
-        sample_item = csv_info[(csv_info['pdb_name'] == pdb_name) & (csv_info['sample_num'] == int(sample_num))]
-        if not sample_item.empty:
-            return(
-                sample_item['contig'].iloc[0],
-                sample_item['mask'].iloc[0],
-                sample_item['motif_indices'].iloc[0],
-            )
-        
-    def motif_indices_to_contig(self, motif_indices: str):
-        if motif_indices.startswith('[') and motif_indices.endswith(']'):
-            motif_indices = motif_indices.strip('[]').split(', ')
-            try:
-                motif_indices = [int(index) for index in motif_indices]
-            except ValueError as e:
-                raise ValueError(f"Error converting motif_indices_str to list of integers: {e}")
-
-            sorted_indices = sorted(motif_indices)
-            contig = ""
-            range_start = None
-
-            for i, index in enumerate(sorted_indices):
-                if range_start is None:
-                    range_start = index
-                if i == len(sorted_indices) - 1 or sorted_indices[i + 1] != index + 1:
-                    if contig:
-                        contig += "/"
-                    if range_start == index:
-                        contig += f"A{range_start}"
-                    else:
-                        contig += f"A{range_start}-{index}"
-                    range_start = None
-            return contig
-        else:
-            raise ValueError(f"Invalid input for motif_indices_to_contig: {motif_indices}")
-
-    def motif_indices_to_fixed_positions(self, motif_indices, chain='A'):
-        # Converts motif indices to the fixed positions string format
-        motif_indices = motif_indices.strip('[]').split(', ')
-        motif_indices = sorted([int(index) for index in motif_indices])
-        fixed_positions = ' '.join(str(idx) for idx in motif_indices)
-        return f"{fixed_positions}"
     
     def run_sampling(self):
         # Run ProteinMPNN
@@ -179,12 +141,17 @@ class Refolder:
                 sample_num = backbone_name.split("_")[-1]
                 parts = backbone_name.split('_')
                 backbone_name = parts[0] if len(parts) == 2 else '_'.join(parts[:-1])                
-                contig, mask, motif_indices = self.get_csv_data(self._motif_csv, backbone_name, sample_num)
+                contig, mask, motif_indices, redesign_info = au.get_csv_data(self._motif_csv, backbone_name, sample_num)
                 
                 # Deal with contig
                 if '6VW1' not in pdb_file:
                     reference_contig = '/'.join(re.findall(r'[A-Za-z]+\d+-\d+', contig)) 
-                design_contig = self.motif_indices_to_contig(motif_indices)
+                design_contig = au.motif_indices_to_contig(motif_indices)
+
+                # Handle redesigned positions
+                if redesign_info is not None:
+                    self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
+                    motif_indices = au.introduce_redesign_positions(motif_indices, redesign_info)
                 
                 # Handle complex case for PDB 6VW1
                 if backbone_name == '6VW1':
@@ -251,7 +218,7 @@ class Refolder:
             decoy_pdb_dir: str,
             reference_pdb_path: str,
             motif_mask: Optional[np.ndarray]=None,
-            motif_indices: Optional[List]=None,
+            motif_indices: Optional[Union[List, str]]=None,
             rms: Optional[float]=None,
             complex_motif: Optional[List]=None,
             ref_motif=None,
@@ -307,7 +274,7 @@ class Refolder:
         
         # Fix desired motifs    
         if motif_indices is not None:
-            fixed_positions = self.motif_indices_to_fixed_positions(motif_indices)
+            fixed_positions = au.motif_indices_to_fixed_positions(motif_indices)
             chains_to_design = "A"
             # This is particularlly for 6VW1
             if complex_motif is not None:
@@ -316,8 +283,6 @@ class Refolder:
                 motif_indices = [element for element in motif_indices if element not in complex_motif]
                 complex_motif = " ".join(map(str, complex_motif)) # List2str
                 fixed_positions = " ".join(map(str, motif_indices)) # List2str
-                # fixed_positions = self.motif_indices_to_fixed_positions(motif_indices)
-                #complex_motif = self.motif_indices_to_fixed_positions(complex_motif)
                 print(motif_indices)
                 print(fixed_positions)
                 fixed_positions = fixed_positions + ", " + complex_motif
@@ -457,12 +422,12 @@ class Refolder:
                 mpnn_results['plddt'].append(f'{plddt:.3f}')
                 mpnn_results['length'].append(len(string))
                 mpnn_results['mpnn_score'].append(f'{score:.3f}')
+                mpnn_results['sample_idx'].append(int(idx))
 
             # Save results to CSV
             esm_csv_path = os.path.join(decoy_pdb_dir, 'esm_eval_results.csv')
             mpnn_results = pd.DataFrame(mpnn_results)
-            esm_columns = ['sample_idx'] + [c for c in mpnn_results.columns if c != 'sample_idx']
-            mpnn_results = mpnn_results.reindex(columns=esm_columns)
+            mpnn_results.sort_values('sample_idx', inplace=True)
             mpnn_results.to_csv(esm_csv_path, index=False)
 
         # Run AF2
@@ -515,21 +480,17 @@ class Refolder:
                 af2_outputs[f'sample_{idx}']['sequence'] = string
                 af2_outputs[f'sample_{idx}']['length'] = len(string)
                 af2_outputs[f'sample_{idx}']['mpnn_score'] = f'{score:.3f}'
-                af2_outputs[f'sample_{idx}']['sample_idx'] = idx
-                #af2_outputs[f'sample_{i}']['mpnn_score'] = 
+                af2_outputs[f'sample_{idx}']['sample_idx'] = int(idx)
             print(f'final_outputs: {af2_outputs}')
             af2_csv_path = os.path.join(decoy_pdb_dir, 'af2_eval_results.csv')
             af2_df = pd.DataFrame.from_dict(af2_outputs, orient='index')
             af2_df.reset_index(inplace=True)
             af2_df.rename(columns={'index': 'sample'}, inplace=True)
             af2_df.drop('sample', axis=1, inplace=True)
-            af2_df['sample_idx'] = af2_df['sample_idx'].astype(int)
-            af2_columns = ['sample_idx'] + [c for c in af2_df.columns if c != 'sample_idx']
-            af2_df = af2_df.reindex(columns=af2_columns)
             af2_df.sort_values('sample_idx', inplace=True)
             af2_df.to_csv(af2_csv_path, index=False)
 
-        if 'ESMFold' and 'AlphaFold2' in self._forward_folding:
+        if 'ESMFold' in self._forward_folding and 'AlphaFold2' in self._forward_folding:
             esm_results = pd.read_csv(esm_csv_path)
             af2_results = pd.read_csv(af2_csv_path)
             esm_results['folding_method'] = 'ESMFold'

@@ -6,6 +6,7 @@ import random
 import shutil
 import json
 import logging
+import pandas as pd
 from typing import *
 from pathlib import Path
 
@@ -309,3 +310,128 @@ def write_seqs_to_fasta(
     for i, (mpnn_score, header, string) in enumerate(input_seqs):
         fasta_instance[header] = string
     fasta_instance.write(fasta_path)
+
+def get_csv_data(
+    csv_info: Union[str, Path],
+    pdb_name: str,
+    sample_num: Union[str, int]
+) -> Tuple:
+    """Index information from input csv file.
+
+    Args:
+        csv_info (Union[str, Path]): CSV file containing motif information. (Template: ./demo/motif_scaffolding/motif_info.csv)
+        pdb_name (str): The name of sampled PDB file with format {pdb_name}_{sample_num}.pdb. e.g. 2KL8_33.pdb -> 2KL8
+        sample_num (Union[str, int]): Number of samples with format {pdb_name}_{sample_num}.pdb. e.g. 2KL8_33.pdb -> 33
+
+    Returns:
+        Tuple: A tuple containing information from each column. 
+            contig (str): Motif and scaffold information, where motifs start with characters and scaffolds start with numbers.
+            mask (str): 1D boolean array containing motif positions. True -> motif, False -> scaffold
+            motif_indices (str): List containing motif positions
+            redesign_positions (str): Positions to be redesigned, segmented by ';'
+    """
+    csv_info = pd.read_csv(csv_info)
+    csv_info['sample_num'] = csv_info['sample_num'].astype(int)
+    sample_item = csv_info[(csv_info['pdb_name'] == pdb_name) & (csv_info['sample_num'] == int(sample_num))]
+    if not sample_item.empty:
+        return(
+            sample_item['contig'].iloc[0],
+            sample_item['mask'].iloc[0],
+            sample_item['motif_indices'].iloc[0],
+            sample_item['redesign_positions'].iloc[0] if 'redesign_positions' in sample_item.columns and not pd.isna(sample_item['redesign_positions'].iloc[0]) else None
+        )
+
+
+def motif_indices_to_contig(motif_indices: str) -> str:
+    """Extract motif contig from overall contig. 
+    e.g. "A1-7/20-20/A28-79" -> "A1-7/A28-79"
+    TBD: Support multiple chains beyond chain A.
+    
+    Args:
+        motif_indices (str): The str object of motif list from "motif_indices" returned by `get_csv_data()`. 
+
+    Returns:
+        contig: Contig containing motif information.
+    """
+    if motif_indices.startswith('[') and motif_indices.endswith(']'):
+        motif_indices = motif_indices.strip('[]').split(', ')
+        try:
+            motif_indices = [int(index) for index in motif_indices]
+        except ValueError as e:
+            raise ValueError(f"Error converting motif_indices_str to list of integers: {e}")
+
+        sorted_indices = sorted(motif_indices)
+        contig = ""
+        range_start = None
+
+        for i, index in enumerate(sorted_indices):
+            if range_start is None:
+                range_start = index
+            if i == len(sorted_indices) - 1 or sorted_indices[i + 1] != index + 1:
+                if contig:
+                    contig += "/"
+                if range_start == index:
+                    contig += f"A{range_start}"
+                else:
+                    contig += f"A{range_start}-{index}"
+                range_start = None
+        return contig
+    else:
+        raise ValueError(f"Invalid input: {motif_indices}")
+
+def motif_indices_to_fixed_positions(motif_indices: Union[str, List]) -> str:
+    """Converts motif indices to the fixed positions string format compatible with ProteinMPNN.
+    e.g. [1, 2, 3, 4, 5, 8, 9] -> "1 2 3 4 5 8 9"
+    
+    Args:
+        motif_indices (Union[str, List]): List-like motif indices.
+
+    Returns:
+        fix_positions (str): A str containing fixed positions seperated by space.
+    """
+    # Converts motif indices to the fixed positions string format
+    if isinstance(motif_indices, list):
+        motif_indices = str(motif_indices)
+    motif_indices = motif_indices.strip('[]').split(', ')
+    motif_indices = sorted([int(index) for index in motif_indices])
+    fixed_positions = ' '.join(str(idx) for idx in motif_indices)
+    return f"{fixed_positions}"
+
+
+def parse_contig_string(contig_string):
+    # Code by @blt2114
+    contig_segments = []
+    for motif_segment in contig_string.split(";"):
+        segment_dict ={"chain":motif_segment[0]}
+        if "-" in motif_segment:
+            segment_dict["start"], segment_dict["end"] = motif_segment[1:].split("-")
+
+        else:
+            segment_dict["start"] = segment_dict["end"] = motif_segment[1:]
+        contig_segments.append(segment_dict)
+    return contig_segments
+
+
+def introduce_redesign_positions(
+    fix_positions: Union[List, str],
+    redesign_positions: str
+) -> List:
+    """Adjust fixed positions list to make certain positions redesignable.
+
+    Args:
+        fix_positions (Union[List, str]): Fixed positions
+        redesign_positions (str): Redesigned list from "redesign_positions" returned by `get_csv_data()`. 
+
+    Returns:
+        List: A list of fixed positions for ProteinMPNN, laterly as input for `motif_indices_to_fixed_positions`.
+    """
+    if isinstance(fix_positions, list):
+        fix_positions = str(fix_positions)
+    
+    pos_to_redesign = parse_contig_string(redesign_positions)
+    redesign_pos = []
+    for seg in pos_to_redesign:
+        for i in range(int(seg['start']), int(seg['end']) + 1):
+            redesign_pos.append(int(i))
+    final_pos = [pos for pos in eval(fix_positions) if pos not in redesign_pos]
+    return final_pos

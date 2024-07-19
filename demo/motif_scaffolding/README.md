@@ -20,6 +20,8 @@ When running refolding on motif-scaffolding task under this demo, we use `motif_
 
 * `mask`: Similar to `motif-indices`, this is a `[N,1]` boolean list that represent the motif information, where `False` means scaffold and `True` means motif. 
 
+* `redesign_positions`: Positions split by `;` here are allowed to be redesigned with ProteinMPNN. i.e. The residue types are changeable over those in native motifs.
+
 Altogether, the main script runs as the following logic:
 
 * Read an input folder with files named like `${pdb_name}_${sample_num}.pdb`;
