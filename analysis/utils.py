@@ -314,7 +314,8 @@ def write_seqs_to_fasta(
 def get_csv_data(
     csv_info: Union[str, Path],
     pdb_name: str,
-    sample_num: Union[str, int]
+    sample_num: Union[str, int],
+    save_csv: Optional[Union[str, Path]] = None
 ) -> Tuple:
     """Index information from input csv file.
 
@@ -334,15 +335,25 @@ def get_csv_data(
     csv_info['sample_num'] = csv_info['sample_num'].astype(int)
     sample_item = csv_info[(csv_info['pdb_name'] == pdb_name) & (csv_info['sample_num'] == int(sample_num))]
     if not sample_item.empty:
+        contig = sample_item['contig'].iloc[0]
+        length, motif_indices, motif_mask = generate_indices_and_mask(contig)
+        if 'motif_indices' not in csv_info.columns:
+            csv_info['motif_indices'] = None
+        if 'mask' not in csv_info.columns:
+            csv_info['mask'] = None
+
+        csv_info.at[sample_item.index[0], 'motif_indices'] = motif_indices
+        csv_info.at[sample_item.index[0], 'mask'] = motif_mask
+
         return(
             sample_item['contig'].iloc[0],
-            sample_item['mask'].iloc[0],
-            sample_item['motif_indices'].iloc[0],
+            motif_mask,
+            motif_indices,
             sample_item['redesign_positions'].iloc[0] if 'redesign_positions' in sample_item.columns and not pd.isna(sample_item['redesign_positions'].iloc[0]) else None
         )
 
 
-def motif_indices_to_contig(motif_indices: str) -> str:
+def motif_indices_to_contig(motif_indices: Union[List, str]) -> str:
     """Extract motif contig from overall contig. 
     e.g. "A1-7/20-20/A28-79" -> "A1-7/A28-79"
     TBD: Support multiple chains beyond chain A.
@@ -353,31 +364,33 @@ def motif_indices_to_contig(motif_indices: str) -> str:
     Returns:
         contig: Contig containing motif information.
     """
-    if motif_indices.startswith('[') and motif_indices.endswith(']'):
+    if isinstance(motif_indices, list):
+        motif_indices = motif_indices
+    elif isinstance(motif_indices, str) and motif_indices.startswith('[') and motif_indices.endswith(']'):
         motif_indices = motif_indices.strip('[]').split(', ')
         try:
             motif_indices = [int(index) for index in motif_indices]
         except ValueError as e:
             raise ValueError(f"Error converting motif_indices_str to list of integers: {e}")
-
-        sorted_indices = sorted(motif_indices)
-        contig = ""
-        range_start = None
-
-        for i, index in enumerate(sorted_indices):
-            if range_start is None:
-                range_start = index
-            if i == len(sorted_indices) - 1 or sorted_indices[i + 1] != index + 1:
-                if contig:
-                    contig += "/"
-                if range_start == index:
-                    contig += f"A{range_start}"
-                else:
-                    contig += f"A{range_start}-{index}"
-                range_start = None
-        return contig
     else:
-        raise ValueError(f"Invalid input: {motif_indices}")
+        raise ValueError(f"Invalid input for motif_indices_to_contig: {motif_indices}")
+
+    sorted_indices = sorted(motif_indices)
+    contig = ""
+    range_start = None
+
+    for i, index in enumerate(sorted_indices):
+        if range_start is None:
+            range_start = index
+        if i == len(sorted_indices) - 1 or sorted_indices[i + 1] != index + 1:
+            if contig:
+                contig += "/"
+            if range_start == index:
+                contig += f"A{range_start}"
+            else:
+                contig += f"A{range_start}-{index}"
+            range_start = None
+    return contig
 
 def motif_indices_to_fixed_positions(motif_indices: Union[str, List]) -> str:
     """Converts motif indices to the fixed positions string format compatible with ProteinMPNN.
@@ -435,3 +448,55 @@ def introduce_redesign_positions(
             redesign_pos.append(int(i))
     final_pos = [pos for pos in eval(fix_positions) if pos not in redesign_pos]
     return final_pos
+
+def generate_indices_and_mask(contig: str) -> Tuple[int, List[int], np.ndarray]:
+    """Index motif and scaffold positions by contig for sequence redesign.
+    Args:
+        contig (str): A string containing positions for scaffolds and motifs.
+        
+        Details:
+        Scaffold parts: Contain a single integer.
+        Motif parts: Start with a letter (chain ID) and contain either a single positions (e.g. A33) or a range of positions (e.g. A33-39).
+        The numbers following chain IDs corresponds to the motif positions in native backbones, which are used to calculate motif reconstruction later on. 
+        e.g. "15/A45-65/20/A20-30"
+        NOTE: The scaffold part should be DETERMINISTIC in this case as it contains information for the corresponding protein backbones. 
+
+    Raises:
+        ValueError: Once a "-" is detected in scaffold parts, throws an error for the aforementioned reason.
+
+    Returns:
+        A Tuple containing:
+            - overall_length (int): Total length of the sequence defined by the contig.
+            - motif_indices (List[int]): List of indices where motifs are located.
+            - motif_mask (np.ndarray): Boolean array where True indicates motif positions and False for scaffold positions.
+    """
+    ALPHABET = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
+    components = contig.split('/')
+    current_position = 1  # Start positions at 1 for 1-based indexing
+    motif_indices = []
+    motif_mask = []
+
+    for part in components:
+        if part[0] in ALPHABET:
+            # Motif part
+            if '-' in part:
+                start, end = map(int, part[1:].split("-"))
+            else: # Single motif
+                start = end = int(part[1:])
+            length = (end - start + 1)
+            motif_indices.extend(range(current_position, current_position + length))
+            motif_mask.extend([True] * length)
+        else:
+            # Scaffold part
+            if '-' in part:
+                raise ValueError(f'There is "-" in scaffold {part}, which supposed to be determined already! Please check again.')
+            length = int(part)
+            motif_mask.extend([False] * length)
+        
+        current_position += length  # Update the current position after processing each part
+
+    # Convert motif_mask to a numpy array for more efficient boolean operations
+    motif_mask = np.array(motif_mask, dtype=bool)
+    overall_length = motif_mask.shape[0]
+
+    return (overall_length, motif_indices, motif_mask)

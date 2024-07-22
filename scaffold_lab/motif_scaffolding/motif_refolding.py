@@ -196,7 +196,7 @@ class Refolder:
                     _ = self.run_self_consistency(
                     sc_output_dir,
                     pdb_path,
-                    motif_mask=np.array(eval(mask)),
+                    motif_mask=mask,
                     motif_indices=motif_indices,
                     rms=rms,
                     complex_motif=chain_B_indices
@@ -205,7 +205,7 @@ class Refolder:
                     _ = self.run_self_consistency(
                         sc_output_dir,
                         pdb_path,
-                        motif_mask=np.array(eval(mask)),
+                        motif_mask=mask,
                         motif_indices=motif_indices,
                         rms=rms,
                         ref_motif=reference_motif,
@@ -411,7 +411,7 @@ class Refolder:
                     mpnn_results['refold_motif_rmsd'].append(f'{refold_motif_rmsd:.3f}')
                 if rms is not None:
                     mpnn_results['backbone_motif_rmsd'].append(f'{rms:.3f}')
-                mpnn_results['sample_idx'].append(idx)
+                mpnn_results['sample_idx'].append(int(idx))
                 mpnn_results['rmsd'].append(f'{rmsd:.3f}')
                 mpnn_results['tm_score'].append(f'{tm_score:.3f}')
                 mpnn_results['sample_path'].append(os.path.abspath(esmf_sample_path))
@@ -422,7 +422,6 @@ class Refolder:
                 mpnn_results['plddt'].append(f'{plddt:.3f}')
                 mpnn_results['length'].append(len(string))
                 mpnn_results['mpnn_score'].append(f'{score:.3f}')
-                mpnn_results['sample_idx'].append(int(idx))
 
             # Save results to CSV
             esm_csv_path = os.path.join(decoy_pdb_dir, 'esm_eval_results.csv')
