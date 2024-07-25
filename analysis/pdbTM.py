@@ -66,7 +66,7 @@ def pdbTM(
     tmp_path = os.path.join(base_tmp_path, f'process_{process_id}')
     os.makedirs(tmp_path, exist_ok=True)
     
-    pdb100 = "~/foldseek/database/pdb100/pdb"
+    pdb100 = "~/zzq/foldseek/database/pdb100/pdb"
     # Check whether input is a directory or a single file
     if ".pdb" in input:
         output_file = f'./{os.path.basename(input)}.m8'

@@ -500,3 +500,71 @@ def generate_indices_and_mask(contig: str) -> Tuple[int, List[int], np.ndarray]:
     overall_length = motif_mask.shape[0]
 
     return (overall_length, motif_indices, motif_mask)
+
+
+def get_redesign_positions(pdb_path: Union[str, Path]) -> Tuple[List[int], List[str]]:
+    """Index residues to be redesigned by "UNK" residues.
+
+    Args:
+        pdb_path (Union[str, Path]): File path for input PDB file.
+
+    Returns:
+        Information for redesign positions
+          redesign_positions (List[int]): Indices of positions to be redesigned inside biotite array object.
+          redesign_chain_pos (List[str]): Indices integrated with chain information. Useful for further information storing.
+    """
+    all_atom_array = strucio.load_structure(pdb_path)
+    ca_array = strucio.load_structure(all_atom_array[(all_atom_array.atom_name=="CA")]) # Get C-alpha array for convenience of indexing
+    
+    # Get three lists to iterate
+    res_id_list = ca_array.res_id
+    chain_id_list = ca_array.chain_id
+    res_name_list = ca_array.res_name
+    
+    redesign_positions = [index for index, resname in zip(res_id_list, res_name_list) if resname == "UNK"]
+    redesign_chain_positions = [f"{chain_id_list[idx]}{res_id_list[idx]}" for idx, resname in enumerate(res_name_list) if resname == "UNK"]
+    
+    return(redesign_positions, redesign_chain_positions)
+
+
+def read_contig_from_header(pdb_path: Union[str, Path]) -> Optional[Tuple[str, str]]:
+    """Read contig information from HEADER record of PDB file.
+    By default, the contig info is stored at the "classification" section and
+    file name is stored at the "identifier" section.
+
+    Args:
+        pdb_path (Union[str, Path]): Path of input PDB file.
+
+    Returns:
+        contig (str): The contig information for where motifs and scaffolds are placed.
+        identifier (str): The file name of input PDB file.
+        
+        If HEADER couldn't be parsed, then it's either because problem in format or
+        you use csv instead of HEADER to load contig information. Return nothing in this case.
+    """
+    try:
+        header_info = parsePDBHeader(pdb_path)
+        contig = header_info['classification']
+        file_identifier = header_info['identifier']
+        return contig, file_identifier
+    except KeyError as e:
+        logging.warning(f"The HEADER of {pdb_path} could not be parsed properly. Please make sure the format is right\
+            or you are using csv file to provide information for contig.")
+        return None
+
+
+def write_contig_into_header(
+    pdb_path: Union[str, Path],
+    contig: str,
+    write_additional_info: bool = True
+):
+
+    date = datetime.now().strftime("%d-%b-%y").upper() if write_additional_info else ""
+    #identifier = os.path.basename(pdb_path).strip('.pdb') if write_additional_info else ""
+    header_string = f"HEADER    {contig:<40}{date:>9}\n"
+    
+    with open(pdb_path, "r") as f:
+        file_lines = f.readlines()
+        file_lines.insert(0, header_string)
+    with open('test.pdb', "w") as f:
+        f.writelines(file_lines)
