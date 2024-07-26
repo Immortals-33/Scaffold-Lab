@@ -9,7 +9,9 @@ import logging
 import pandas as pd
 from typing import *
 from pathlib import Path
+from datetime import datetime
 
+import prody
 import mdtraj as md
 import MDAnalysis as mda
 import biotite
@@ -22,6 +24,7 @@ from biotite.structure import get_chains
 from biotite.sequence import ProteinSequence
 from biotite.sequence.io import fasta
 from tmtools import tm_align
+from prody import parsePDBHeader
 
 log = logging.getLogger(__name__)
 
