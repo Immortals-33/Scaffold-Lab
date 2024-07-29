@@ -37,8 +37,12 @@ We present the benchmark for both unconditional generation and conditional gener
 
 > [!NOTE]  
 >
-> This is a **beta** version which has not been tested thoroughly. Bug reports and pull requests are especially welcomed.
-
+> This is a **beta** version which has not been tested thoroughly. Bug reports and pull requests are especially welcomed. 
+> 
+> You can also try our notebook in colab:
+>
+> [<img src="https://colab.research.google.com/assets/colab-badge.svg">](https://colab.research.google.com/github/sirius777coder/nemo/blob/main/examples/nemo.ipynb)
+> 
 ***
 
 
