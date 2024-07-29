@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import subprocess
 import random
+import shutil
+import logging
 import typing as T
 from typing import *
 from pathlib import Path
@@ -21,8 +23,12 @@ for further information and customized parameters.
 NOTE: Foldseek might sometimes fail to cluster the structures.
 (Emprically speaking, this is probably due to the low diversity of the folder)
 """
+
+log = logging.getLogger(__name__)
+
 def foldseek_cluster(
     input: Union[str, Path],
+    assist_protein_path: Union[str, Path],
     tmscore_threshold: float = 0.5,
     alignment_type: int = 1,
     output_mode: str = 'FLOAT',
@@ -30,8 +36,12 @@ def foldseek_cluster(
     foldseek_path: Optional[Union[str, Path]] = None
 ) -> Union[float, dict]:
     
-    tmp_path = "../tmp/"
-    output_prefix = f'test_{random.randint(1, 10000)}'
+    if not os.listdir(input):
+        return {"Clusters": 0, "Samples": 0, "Diversity": 0} if output_mode == 'DICT' else 0
+    tmp_path = os.path.join(input, 'tmp')
+    os.makedirs(tmp_path, exist_ok=True)
+
+    output_prefix = os.path.join(input, 'diversity')
     
     cmd = f'foldseek easy-cluster \
             {input} \
@@ -44,18 +54,32 @@ def foldseek_cluster(
     if foldseek_path is not None:
         cmd.replace('foldseek', foldseek_path)
         
-    subprocess.run(cmd, shell=True, check=True)
+    assist_num = 0
+    try:
+        subprocess.run(cmd, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        shutil.copy(assist_protein_path, os.path.join(input, 'assist_protein.pdb'))
+        log.info(f'Foldseek-clusters encountered an error. \
+        Copied an assistant protein to resume clustering.')
+        subprocess.run(cmd, shell=True, check=True)
+        assist_num += 1
+
     
     result = pd.read_csv(f'{output_prefix}_cluster.tsv', sep='\t', header=None, names=['clusters', 'members'])
-    unique_clusters = result['clusters'].nunique()
-    total_members = len(result)
+    unique_clusters = result['clusters'].nunique() - assist_num
+    total_members = len(result) - assist_num
     diversity = round(unique_clusters / total_members, 3)
     
     if not save_tmp:
         os.remove(f'{output_prefix}_cluster.tsv') 
         os.remove(f'{output_prefix}_rep_seq.fasta')
         os.remove(f'{output_prefix}_all_seqs.fasta')
-        
+
+    # Remove assistant protein
+    if os.path.exists(os.path.join(input, 'assist_protein.pdb')):
+        os.remove(os.path.join(input, 'assist_protein.pdb'))
+    shutil.rmtree(tmp_path)
+
     if output_mode == 'FLOAT':
         return diversity
     elif output_mode == 'DICT':
@@ -82,7 +106,7 @@ def process_directories(methods_dict: Dict[str, List[str]]) -> pd.DataFrame:
     return results_df
 
 # Example Usage
-results_df = process_directories(methods_dict)
+#results_df = process_directories(methods_dict)
 """
 Here, the `methods_dict` is a dictionary like:
 {
@@ -102,4 +126,8 @@ where it is organized like {method_name}-[List of PDB folders to be clustered]
 Then the results will be written into a `pd.DataFrame` object.
 Also,  
 """
-results_df.to_csv("TM_0.5_diversity_results.csv", index=False)
+#results_df.to_csv("TM_0.5_diversity_results.csv", index=False)
+
+if __name__ == "__main__":
+    results_df = process_directories(methods_dict)
+    results_df.to_csv("TM_0.5_diversity_results.csv", index=False)

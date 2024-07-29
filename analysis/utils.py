@@ -6,6 +6,7 @@ import random
 import shutil
 import json
 import logging
+import glob
 import pandas as pd
 from typing import *
 from pathlib import Path
@@ -571,3 +572,117 @@ def write_contig_into_header(
         file_lines.insert(0, header_string)
     with open('test.pdb', "w") as f:
         f.writelines(file_lines)
+
+
+def csv_merge(
+    root_dir: Union[str, Path], 
+    prefix: str = "esm",
+    ) -> pd.DataFrame:
+    merged_data = pd.DataFrame()
+
+    file_count = 0
+    for root, dirs, files in os.walk(root_dir):
+        for file in files:
+            if file == f'{prefix}_eval_results.csv':
+                file_count += 1
+                csv_path = os.path.join(root, file)
+                df = pd.read_csv(csv_path)
+
+                parent_dir = os.path.abspath(os.path.join(root, os.pardir))
+                print(parent_dir)
+                pdb_files = glob.glob(os.path.join(parent_dir, '*.pdb'))
+                
+                # Check if there is more than one .pdb file
+                if len(pdb_files) > 1:
+                    raise RuntimeError(f"More than one .pdb file found in {parent_dir}")
+                elif pdb_files:
+                    df['backbone_path'] = os.path.abspath(pdb_files[0])
+                else:
+                    df['backbone_path'] = None
+
+                if prefix == 'esm':
+                    df['folding_method'] = 'ESMFold'
+                elif prefix == 'af2':
+                    df['folding_method'] = 'AlphaFold2'
+
+                merged_data = pd.concat([merged_data, df], ignore_index=True)
+    
+    return merged_data, file_count
+
+
+def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode="all"):
+    # Define success criteria for each sample
+    merged_data = pd.read_csv(merged_data) if isinstance(merged_data, str) or isinstance(merged_data, Path) else merged_data
+    
+    merged_data['all_success'] = (merged_data['tm_score'] >= 0.5) & (merged_data['motif_rmsd'] < 1) & (merged_data['pae'] < 5)
+    merged_data['backbone_success'] = (merged_data['rmsd'] < 2)
+    merged_data['motif_success'] = (merged_data['motif_rmsd'] < 1)
+
+    # Group by 'backbone_path' and aggregate the success criteria
+    group_success = merged_data.groupby('backbone_path').agg({
+        'all_success': 'any',
+        'backbone_success': 'any',
+        'motif_success': 'any'
+    }).rename(columns={
+        'all_success': 'Success',
+        'backbone_success': 'Backbone_Success',
+        'motif_success': 'Motif_Success'
+    })
+
+    # Join the aggregated results back to the original DataFrame
+    merged_data = merged_data.merge(group_success, on='backbone_path', how='left')
+    
+    successful_backbones = set()
+    if group_mode == 'all':
+        success_count = merged_data[merged_data['Success'] == True]['backbone_path'].nunique()
+        successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
+    elif group_mode == 'PDB id':
+        success_count = dict.fromkeys(merged_data['PDB id'].unique(), 0)
+        success_per_pdb = merged_data[merged_data['Success'] == True].groupby('PDB id')['backbone_path'].nunique()
+        success_count.update(success_per_pdb.to_dict())
+        successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
+    
+    return merged_data, success_count, successful_backbones
+
+
+def parse_input_motif(
+    pdb_path: Union[str, Path],
+    benchmark_csv: Union[str, Path, pd.DataFrame]
+):
+    """Parse information based on input contig.
+    # Example contig: "2KL8,A1-7/20/A28-79,A3-5;A33;A36"
+
+    """
+    contig = read_contig_from_header(pdb_path)[0] # Example contig
+    if len(contig.split(',')) == 3:
+        pdb_id, motif_spec, redesign_idx = contig.split(',')
+    elif len(contig.split(',')) == 2:
+        pdb_id, motif_spec = contig.split(',')
+    else:
+        raise ValueError(f'Incorrect format for contig {contig}! Please check again.')
+    
+    native_motif = benchmark_csv.iloc[pdb_id][0][1] # Need to be changed, structure of input motif
+    design_motif = motif_extract(motif_spec, pdb_path, atom_part='backbone') # structure of designed motif
+
+    # "A1-7/20/A28-79" ->
+      # length: 79
+      # motif_indices: [1, 2, ..., 7, 28, ..., 78, 79]
+      # motif_mask: [True, True, ..., False, ..., True]
+    length, motif_indices, motif_mask = generate_indices_and_mask(motif_spec)
+    # Get redesigned positions from native motifs by 'UNK'
+    native_redesign_idx = get_redesign_positions(native_motif)
+    # Make sure don't cheat
+    assert len() == len(parse_contig_string)
+    design_contig = motif_indices_to_contig(motif_spec) # "A1-7/20/A28-79" -> "A1-7/A28-79"
+
+    # Introduce positions to be redesigned and turn into format compatible with ProteinMPNN
+    fix_positions = motif_indices_to_fixed_positions(motif_indices) # [1, 2, 3, ...., 79] -> [1 2 3 ... 79]
+    if redesign_idx:
+        fix_positions = introduce_redesign_positions(fix_positions, redesign_idx) # [1 2 3 ..., 79] -> [1 2 ... 79]
+    return (
+        motif_mask,
+        motif_indices,
+        fix_positions,
+        native_motif,
+        design_motif
+    )

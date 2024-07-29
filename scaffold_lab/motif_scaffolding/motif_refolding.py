@@ -43,6 +43,8 @@ rootutils.set_root(
 
 from analysis import utils as au
 from data import structure_utils as su
+from analysis import diversity as du
+from analysis import novelty as nu
 
 
 class Refolder:
@@ -564,7 +566,129 @@ class Refolder:
                 torch.cuda.empty_cache()
                 if num_tries_af2 > 10:
                     raise e
+
+class Evaluator:
+    def __init__(
+    self,
+    conf:DictConfig,
+    conf_overrides: Dict=None
+    ):
     
+        self._log = logging.getLogger(__name__)
+        
+        OmegaConf.set_struct(conf, False)
+        
+        self._conf = conf
+        self._infer_conf = conf.inference
+        self._eval_conf = conf.evaluation
+        self._result_dir = os.path.join(
+            self._infer_conf.output_dir, 
+            os.path.basename(os.path.normpath(self._infer_conf.backbone_pdb_dir))
+            )
+
+        self._foldseek_path = self._eval_conf.foldseek_path
+        self._foldseek_database = self._eval_conf.foldseek_database
+        self._assist_protein_path = self._eval_conf.assist_protein
+
+        self.folding_method = self._infer_conf.predict_method
+        
+        self._rng = np.random.default_rng(self._infer_conf.seed)
+
+        # Hardware resources
+        self._num_cpu_cores = os.cpu_count()
+
+        # Merge results into one csv file
+        if 'ESMFold' in self.folding_method and 'AlphaFold2' in self.folding_method:
+            self.prefix = 'joint'
+        elif 'ESMFold' in self.folding_method and 'AlphaFold2' not in self.folding_method:
+            self.prefix = 'esm'
+        else:
+            self.prefix = 'af2'
+
+    def run_evaluation(self):
+
+        results_df, pdb_count = au.csv_merge(
+            root_dir=self._result_dir,
+            prefix=self.prefix
+        )
+
+        merged_csv_path = os.path.join(self._result_dir, 'merged_results.csv')
+        results_df.to_csv(merged_csv_path, index=False)
+
+        # Analyze outputs
+        updated_data, designability_count, backbones = au.analyze_success_rate(
+            merged_data=merged_csv_path,
+            group_mode='all'
+        )
+        self._log.info(f'Designable backbones in {self._result_dir}: {designability_count}.')
+
+        updated_data.to_csv(merged_csv_path, index=False)
+
+        # Diversity Calculation
+        successful_backbone_dir = os.path.join(self._result_dir, 'successful_backbones')
+        if not os.path.exists(successful_backbone_dir):
+            os.makedirs(successful_backbone_dir, exist_ok=False)
+        for pdb in backbones:
+            new_path = os.path.join(successful_backbone_dir, os.path.basename(pdb))
+            shutil.copy(pdb, new_path)
+
+        diversity = du.foldseek_cluster(
+            input=successful_backbone_dir,
+            assist_protein_path=self._assist_protein_path,
+            tmscore_threshold=0.5,
+            alignment_type= 1,
+            output_mode='DICT',
+            save_tmp=True,
+            foldseek_path=self._foldseek_path
+        )
+        self._log.info(f"Diversity Calculation for {self._result_dir} finished.\n\
+            Total designable backbones: {diversity['Samples']}\n\
+            Unique designable backbones: {diversity['Clusters']}\n\
+            Diversity: {diversity['Diversity']}")
+
+        diversity_results = os.path.join(successful_backbone_dir, 'diversity_cluster.tsv')
+        with open (diversity_results, 'r') as f:
+            cluster_info = f.readlines()
+        cluster_info = [i.split('\t')[0] for i in cluster_info]
+        if 'assist_protein.pdb' in cluster_info:
+            cluster_info.remove('assist_protein.pdb')
+        unique_designable_backbones = set(cluster_info)
+
+        unique_designable_backbones_dir = os.path.join(self._result_dir, 'unique_designable_backbones')
+        if not os.path.exists(unique_designable_backbones_dir):
+            os.makedirs(unique_designable_backbones_dir, exist_ok=False)
+        for pdb in unique_designable_backbones:
+            old_path = os.path.join(successful_backbone_dir, pdb)
+            shutil.copy(old_path, unique_designable_backbones_dir)
+
+        # Novelty Calculation
+        success_results = updated_data[updated_data['Success'] == True]
+        results_with_novelty = nu.calculate_novelty(
+            input_csv=success_results,
+            foldseek_database_path=self._eval_conf.foldseek_database,
+            max_workers=self._num_cpu_cores,
+            cpu_threshold=75.0
+        )
+        mean_novelty = results_with_novelty['pdbTM'].mean()
+        max_novelty = results_with_novelty['pdbTM'].min()
+        self._log.info(f'Novelty Calculation finished.\n\
+            Average novelty (pdbTM) among successful backbones: {mean_novelty:.3f}\n\
+            The most novel backbone has a pdbTM of {max_novelty:.3f}')
+        novelty_csv_path = os.path.join(self._result_dir, 'successful_novelty_results.csv')
+        results_with_novelty.to_csv(novelty_csv_path, index=False)
+
+        # Summary outputs
+        designable_fraction = f'{(designability_count / pdb_count * 100):.2f}'
+        diversity_value = diversity['Diversity']
+        with open (os.path.join(self._result_dir, 'summary.txt'), 'w') as f:
+            f.write('-------------------Summary-------------------\n')
+            f.write(f'The following are evaluation results for {os.path.abspath(self._result_dir)}:\n')
+            f.write(f'Evaluated Protein: {os.path.basename(os.path.normpath(self._result_dir))}\n')
+            f.write(f'Designability Fraction: {designable_fraction}%\n')
+            f.write(f'Diversity: {diversity_value}\n')
+            f.write(f'Novelty: {mean_novelty}\n')
+
+
 @hydra.main(version_base=None, config_path="../../config", config_name="motif_scaffolding.yaml")
 def run(conf: DictConfig) -> None:
     
@@ -573,7 +697,14 @@ def run(conf: DictConfig) -> None:
     refolder = Refolder(conf)
     refolder.run_sampling()
     elapsed_time = time.time() - start_time
-    print(f"Finished in {elapsed_time:.2f}s. Voila!")
+    print(f"Refolding finished in {elapsed_time:.2f}s.")
+
+    start_time = time.time()
+    evaluator = Evaluator(conf)
+    evaluator.run_evaluation()
+    elapsed_time = time.time() - start_time
+    print(f'Evaluation finished in {elapsed_time:.2f}s. Voila!')
+
     
 if __name__ == '__main__':
     run()

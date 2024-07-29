@@ -35,3 +35,10 @@ inference:
     num_relax: 3
     use_gpu_relax: False
     rank: ptm # {auto, plddt, ptm, iptm, multimer}
+
+evaluation:
+  assist_protein: ./tools/assistant_protein/assist_protein.pdb
+  foldseek_path: None
+  foldseek_database: "~/zzq/foldseek/database/pdb100/pdb"
+  
+    
