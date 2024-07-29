@@ -41,7 +41,7 @@ We present the benchmark for both unconditional generation and conditional gener
 > 
 > You can also try our notebook in colab:
 >
-> [<img src="https://colab.research.google.com/assets/colab-badge.svg">](https://colab.research.google.com/github/sirius777coder/nemo/blob/main/examples/nemo.ipynb)
+> [<img src="https://colab.research.google.com/assets/colab-badge.svg">](https://colab.research.google.com/github/Immortals-33/Scaffold-Lab/blob/main/scaffold_lab.ipynb)
 > 
 ***
 
