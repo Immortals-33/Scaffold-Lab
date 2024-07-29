@@ -35,10 +35,11 @@ Batch Mode:
 """
 
 def pdbTM(
-    input: Union[Path, str],
+    input: Union[str, Path],
+    foldseek_database_path: Union[str, Path],
     process_id: int,
     save_tmp: bool = False,
-    foldseek_path: Optional[Union[Path, str]] = None
+    foldseek_path: Optional[Union[Path, str]] = None,
 ) -> Union[float, dict]:
     """
     Calculate pdbTM values with a customized set of parameters by Foldseek.
@@ -66,14 +67,14 @@ def pdbTM(
     tmp_path = os.path.join(base_tmp_path, f'process_{process_id}')
     os.makedirs(tmp_path, exist_ok=True)
     
-    pdb100 = "~/zzq/foldseek/database/pdb100/pdb"
+    #pdb100 = "~/zzq/foldseek/database/pdb100/pdb"
     # Check whether input is a directory or a single file
     if ".pdb" in input:
         output_file = f'./{os.path.basename(input)}.m8'
         
         cmd = f'foldseek easy-search \
                 {input} \
-                {pdb100} \
+                {foldseek_database_path} \
                 {output_file} \
                 {tmp_path} \
                 --format-mode 4 \
@@ -99,11 +100,12 @@ def pdbTM(
     return top_pdbTM
 
 def calculate_novelty(
-    input_csv: str,
+    input_csv: Union[str, Path, pd.DataFrame],
+    foldseek_database_path: Union[str, Path],
     max_workers: int,
     cpu_threshold: float 
 ) -> pd.DataFrame:
-    df = pd.read_csv(input_csv)
+    df = pd.read_csv(input_csv) if isinstance(input_csv, str) or isinstance(input_csv, Path) else input_csv
     if 'pdbTM' not in df.columns:
         df['pdbTM'] = None
         
@@ -114,7 +116,7 @@ def calculate_novelty(
             if pd.isna(df[df['backbone_path'] == backbone_path]['pdbTM'].iloc[0]):
                 while psutil.cpu_percent(interval=1) > cpu_threshold:
                     time.sleep(0.5)
-                future = executor.submit(pdbTM, backbone_path, process_id)
+                future = executor.submit(pdbTM, backbone_path, foldseek_database_path, process_id)
                 futures[future] = backbone_path
                 process_id += 1
                 
