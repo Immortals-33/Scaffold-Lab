@@ -12,7 +12,6 @@ from typing import *
 from pathlib import Path
 from datetime import datetime
 
-import prody
 import mdtraj as md
 import MDAnalysis as mda
 import biotite
@@ -25,7 +24,7 @@ from biotite.structure import get_chains
 from biotite.sequence import ProteinSequence
 from biotite.sequence.io import fasta
 from tmtools import tm_align
-from prody import parsePDBHeader
+from Bio.PDB.parse_pdb_header import parse_pdb_header
 
 log = logging.getLogger(__name__)
 
@@ -307,11 +306,11 @@ def cleanup_af2_outputs(
     return output_dict
 
 def write_seqs_to_fasta(
-    input_seqs: Union[list],
+    input_seqs: Union[Dict, list, str],
     fasta_path: Union[str, Path]
 ) -> None:
     fasta_instance = fasta.FastaFile()
-    for i, (mpnn_score, header, string) in enumerate(input_seqs):
+    for header, string in input_seqs.items():
         fasta_instance[header] = string
     fasta_instance.write(fasta_path)
 
@@ -506,7 +505,7 @@ def generate_indices_and_mask(contig: str) -> Tuple[int, List[int], np.ndarray]:
     return (overall_length, motif_indices, motif_mask)
 
 
-def get_redesign_positions(pdb_path: Union[str, Path]) -> Tuple[List[int], List[str]]:
+def get_redesign_positions(pdb_path: Union[str, Path]) -> Tuple[List[int], List[str], str]:
     """Index residues to be redesigned by "UNK" residues.
 
     Args:
@@ -518,17 +517,23 @@ def get_redesign_positions(pdb_path: Union[str, Path]) -> Tuple[List[int], List[
           redesign_chain_pos (List[str]): Indices integrated with chain information. Useful for further information storing.
     """
     all_atom_array = strucio.load_structure(pdb_path)
-    ca_array = strucio.load_structure(all_atom_array[(all_atom_array.atom_name=="CA")]) # Get C-alpha array for convenience of indexing
+    ca_array = all_atom_array[(all_atom_array.atom_name == "CA")] # Get C-alpha array for convenience of indexing
     
     # Get three lists to iterate
     res_id_list = ca_array.res_id
     chain_id_list = ca_array.chain_id
     res_name_list = ca_array.res_name
     
-    redesign_positions = [index for index, resname in zip(res_id_list, res_name_list) if resname == "UNK"]
-    redesign_chain_positions = [f"{chain_id_list[idx]}{res_id_list[idx]}" for idx, resname in enumerate(res_name_list) if resname == "UNK"]
+    if 'UNK' in res_name_list:
+        redesign_positions = [index for index, resname in zip(res_id_list, res_name_list) if resname == "UNK"]
+        redesign_chain_positions = [f"{chain_id_list[idx]}{res_id_list[idx]}" for idx, resname in enumerate(res_name_list) if resname == "UNK"]
+        
+        formatted_chain_positions = format_chain_positions(redesign_chain_positions)
     
-    return(redesign_positions, redesign_chain_positions)
+        return(redesign_positions, redesign_chain_positions, formatted_chain_positions)
+    
+    else:
+        return None
 
 
 def read_contig_from_header(pdb_path: Union[str, Path]) -> Optional[Tuple[str, str]]:
@@ -547,9 +552,9 @@ def read_contig_from_header(pdb_path: Union[str, Path]) -> Optional[Tuple[str, s
         you use csv instead of HEADER to load contig information. Return nothing in this case.
     """
     try:
-        header_info = parsePDBHeader(pdb_path)
-        contig = header_info['classification']
-        file_identifier = header_info['identifier']
+        header_info = parse_pdb_header(pdb_path)
+        contig = header_info['head'].upper().split(' ')[0]
+        file_identifier = header_info['idcode']
         return contig, file_identifier
     except KeyError as e:
         logging.warning(f"The HEADER of {pdb_path} could not be parsed properly. Please make sure the format is right\
@@ -560,17 +565,19 @@ def read_contig_from_header(pdb_path: Union[str, Path]) -> Optional[Tuple[str, s
 def write_contig_into_header(
     pdb_path: Union[str, Path],
     contig: str,
-    write_additional_info: bool = True
+    output_path: Optional[Union[str, Path]],
+    write_additional_info: bool = True,
 ):
 
     date = datetime.now().strftime("%d-%b-%y").upper() if write_additional_info else ""
     #identifier = os.path.basename(pdb_path).strip('.pdb') if write_additional_info else ""
     header_string = f"HEADER    {contig:<40}{date:>9}\n"
+    save_path = output_path if output_path is not None else pdb_path
     
     with open(pdb_path, "r") as f:
         file_lines = f.readlines()
         file_lines.insert(0, header_string)
-    with open('test.pdb', "w") as f:
+    with open(save_path, "w") as f:
         f.writelines(file_lines)
 
 
@@ -645,9 +652,39 @@ def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode
     return merged_data, success_count, successful_backbones
 
 
-def parse_input_motif(
+def format_chain_positions(positions: List[str]) -> str:
+    if not positions:
+        return ""
+    
+    formatted_positions = []
+    current_chain = positions[0][0]
+    start_num = int(positions[0][1:])
+    end_num = start_num
+
+    for pos in positions[1:]:
+        chain, num = pos[0], int(pos[1:])
+        if chain == current_chain and num == end_num + 1:
+            end_num = num
+        else:
+            if start_num == end_num:
+                formatted_positions.append(f"{current_chain}{start_num}")
+            else:
+                formatted_positions.append(f"{current_chain}{start_num}-{end_num}")
+            current_chain = chain
+            start_num = end_num = num
+    
+    # Append the last range or number
+    if start_num == end_num:
+        formatted_positions.append(f"{current_chain}{start_num}")
+    else:
+        formatted_positions.append(f"{current_chain}{start_num}-{end_num}")
+    
+    return ";".join(formatted_positions)
+
+
+def parse_input_scaffold(
     pdb_path: Union[str, Path],
-    benchmark_csv: Union[str, Path, pd.DataFrame]
+    #benchmark_csv: Union[str, Path, pd.DataFrame]
 ):
     """Parse information based on input contig.
     # Example contig: "2KL8,A1-7/20/A28-79,A3-5;A33;A36"
@@ -658,10 +695,12 @@ def parse_input_motif(
         pdb_id, motif_spec, redesign_idx = contig.split(',')
     elif len(contig.split(',')) == 2:
         pdb_id, motif_spec = contig.split(',')
+        if get_redesign_positions(pdb_path) is not None:
+            redesign_idx = get_redesign_positions(pdb_path)[2]
     else:
         raise ValueError(f'Incorrect format for contig {contig}! Please check again.')
     
-    native_motif = benchmark_csv.iloc[pdb_id][0][1] # Need to be changed, structure of input motif
+    #native_motif = benchmark_csv.iloc[pdb_id][0][1] # Need to be changed, structure of input motif
     design_motif = motif_extract(motif_spec, pdb_path, atom_part='backbone') # structure of designed motif
 
     # "A1-7/20/A28-79" ->
@@ -670,19 +709,20 @@ def parse_input_motif(
       # motif_mask: [True, True, ..., False, ..., True]
     length, motif_indices, motif_mask = generate_indices_and_mask(motif_spec)
     # Get redesigned positions from native motifs by 'UNK'
-    native_redesign_idx = get_redesign_positions(native_motif)
+    #native_redesign_idx = get_redesign_positions(native_motif)
     # Make sure don't cheat
-    assert len() == len(parse_contig_string)
-    design_contig = motif_indices_to_contig(motif_spec) # "A1-7/20/A28-79" -> "A1-7/A28-79"
+    #assert len() == len(parse_contig_string)
+    #design_contig = motif_indices_to_contig(motif_spec) # "A1-7/20/A28-79" -> "A1-7/A28-79"
 
     # Introduce positions to be redesigned and turn into format compatible with ProteinMPNN
-    fix_positions = motif_indices_to_fixed_positions(motif_indices) # [1, 2, 3, ...., 79] -> [1 2 3 ... 79]
-    if redesign_idx:
-        fix_positions = introduce_redesign_positions(fix_positions, redesign_idx) # [1 2 3 ..., 79] -> [1 2 ... 79]
+    #fix_positions = motif_indices_to_fixed_positions(motif_indices) # [1, 2, 3, ...., 79] -> [1 2 3 ... 79]
+    #if redesign_idx:
+    #    fix_positions = introduce_redesign_positions(fix_positions, redesign_idx) # [1 2 3 ..., 79] -> [1 2 ... 79]
     return (
+        motif_spec,
         motif_mask,
         motif_indices,
-        fix_positions,
-        native_motif,
-        design_motif
+        redesign_idx,
+        #native_motif,
+        #design_motif
     )

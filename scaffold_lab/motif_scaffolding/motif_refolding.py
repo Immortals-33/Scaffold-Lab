@@ -116,7 +116,8 @@ class Refolder:
         self._CA_only = self._infer_conf.CA_only
         
         # Configs for motif-scaffolding
-        self._motif_csv = self._infer_conf.motif_csv_dir
+        if self._infer_conf.motif_csv_path is not None:
+            self._motif_csv = self._infer_conf.motif_csv_path
         self._input_pdbs_dir = self._infer_conf.input_pdbs_dir
         
         # Save config
@@ -142,13 +143,20 @@ class Refolder:
                 backbone_name = os.path.splitext(pdb_file)[0]
                 sample_num = backbone_name.split("_")[-1]
                 parts = backbone_name.split('_')
-                backbone_name = parts[0] if len(parts) == 2 else '_'.join(parts[:-1])                
-                contig, mask, motif_indices, redesign_info = au.get_csv_data(self._motif_csv, backbone_name, sample_num)
+                backbone_name = parts[0] if len(parts) == 2 else '_'.join(parts[:-1])
+
+                if os.path.exists(self._motif_csv):
+                    contig, mask, motif_indices, redesign_info = au.get_csv_data(self._motif_csv, backbone_name, sample_num)
+                else:
+                    contig, mask, motif_indices, redesign_info = au.parse_input_scaffold(
+                        os.path.join(self._sample_dir, pdb_file))
+                    #print(f'contig: {contig}\nmask: {mask}motif_indices: {motif_indices}\nredesign_info: {redesign_info}')
                 
                 # Deal with contig
                 if '6VW1' not in pdb_file:
                     reference_contig = '/'.join(re.findall(r'[A-Za-z]+\d+-\d+', contig)) 
                 design_contig = au.motif_indices_to_contig(motif_indices)
+                print(f'design_contig: {design_contig}')
 
                 # Handle redesigned positions
                 if redesign_info is not None:
@@ -349,10 +357,11 @@ class Refolder:
         esmf_dir = os.path.join(decoy_pdb_dir, 'esmf')
         af2_raw_dir = os.path.join(decoy_pdb_dir, 'af2_raw_outputs')
         fasta_seqs = fasta.FastaFile.read(mpnn_fasta_path)
+        filtered_seqs = {header: seq for header, seq in fasta_seqs.items() if header.startswith("T=0")}
         if self._sample_conf.sort_by_score:
         # Only take seqs with lowerst global score to enter refolding
             scores = []
-            for i, (header, string) in enumerate(fasta_seqs.items()):
+            for i, (header, string) in enumerate(filtered_seqs.items()):
                 if i == 0:
                     global_score = float(header.split(", ")[2].split("=")[1])
                     original_seq = (global_score, header, string)
@@ -368,6 +377,10 @@ class Refolder:
                 f'top_score_{os.path.basename(reference_pdb_path)}'.replace('.pdb', '.fa')
             )
             _ = au.write_seqs_to_fasta(top_seqs, top_seqs_path)
+        else:
+            filtered_seqs = {header: seq for header, seq in fasta_seqs.items() if header.startswith("T=0")}
+            #print(f'filtered_seqs: {filtered_seqs}')
+            _ = au.write_seqs_to_fasta(filtered_seqs, mpnn_fasta_path)
         
         seqs_to_refold = top_seqs_path if self._sample_conf.sort_by_score else mpnn_fasta_path
         seqs_dict = fasta.FastaFile.read(seqs_to_refold)
@@ -646,39 +659,48 @@ class Evaluator:
             Unique designable backbones: {diversity['Clusters']}\n\
             Diversity: {diversity['Diversity']}")
 
-        diversity_results = os.path.join(successful_backbone_dir, 'diversity_cluster.tsv')
-        with open (diversity_results, 'r') as f:
-            cluster_info = f.readlines()
-        cluster_info = [i.split('\t')[0] for i in cluster_info]
-        if 'assist_protein.pdb' in cluster_info:
-            cluster_info.remove('assist_protein.pdb')
-        unique_designable_backbones = set(cluster_info)
+        diversity_result_path = os.path.join(successful_backbone_dir, 'diversity_cluster.tsv')
+        if os.path.exists(diversity_result_path):
+            with open (diversity_result_path, 'r') as f:
+                cluster_info = f.readlines()
+            cluster_info = [i.split('\t')[0] for i in cluster_info]
+            if 'assist_protein.pdb' in cluster_info:
+                cluster_info.remove('assist_protein.pdb')
+            unique_designable_backbones = set(cluster_info)
 
-        unique_designable_backbones_dir = os.path.join(self._result_dir, 'unique_designable_backbones')
-        if not os.path.exists(unique_designable_backbones_dir):
-            os.makedirs(unique_designable_backbones_dir, exist_ok=False)
-        for pdb in unique_designable_backbones:
-            old_path = os.path.join(successful_backbone_dir, pdb)
-            shutil.copy(old_path, unique_designable_backbones_dir)
+            unique_designable_backbones_dir = os.path.join(self._result_dir, 'unique_designable_backbones')
+            if not os.path.exists(unique_designable_backbones_dir):
+                os.makedirs(unique_designable_backbones_dir, exist_ok=False)
+            for pdb in unique_designable_backbones:
+                old_path = os.path.join(successful_backbone_dir, pdb)
+                shutil.copy(old_path, unique_designable_backbones_dir)
+        else:
+            self._log.info('Diversity results not found. Please check if Foldseek clustered\
+                properly or there is no designable backbone presented.')
+
 
         # Novelty Calculation
-        success_results = updated_data[updated_data['Success'] == True]
-        results_with_novelty = nu.calculate_novelty(
-            input_csv=success_results,
-            foldseek_database_path=self._eval_conf.foldseek_database,
-            max_workers=self._num_cpu_cores,
-            cpu_threshold=75.0
-        )
-        mean_novelty = results_with_novelty['pdbTM'].mean()
-        max_novelty = results_with_novelty['pdbTM'].min()
-        self._log.info(f'Novelty Calculation finished.\n\
-            Average novelty (pdbTM) among successful backbones: {mean_novelty:.3f}\n\
-            The most novel backbone has a pdbTM of {max_novelty:.3f}')
-        novelty_csv_path = os.path.join(self._result_dir, 'successful_novelty_results.csv')
-        results_with_novelty.to_csv(novelty_csv_path, index=False)
+        if len(os.listdir(successful_backbone_dir)) > 0: 
+            success_results = updated_data[updated_data['Success'] == True]
+            results_with_novelty = nu.calculate_novelty(
+                input_csv=success_results,
+                foldseek_database_path=self._eval_conf.foldseek_database,
+                max_workers=self._num_cpu_cores,
+                cpu_threshold=75.0
+            )
+            mean_novelty = results_with_novelty['pdbTM'].mean()
+            max_novelty = results_with_novelty['pdbTM'].min()
+            self._log.info(f'Novelty Calculation finished.\n\
+                Average novelty (pdbTM) among successful backbones: {mean_novelty:.3f}\n\
+                The most novel backbone has a pdbTM of {max_novelty:.3f}')
+            novelty_csv_path = os.path.join(self._result_dir, 'successful_novelty_results.csv')
+            results_with_novelty.to_csv(novelty_csv_path, index=False)
+        else:
+            self._log.info('No successful backbone was found. Pass novelty calculation.')
+            mean_novelty = 'null'
 
         # Summary outputs
-        designable_fraction = f'{(designability_count / pdb_count * 100):.2f}'
+        designable_fraction = f'{(designability_count / (pdb_count + 1e-6) * 100):.2f}'
         diversity_value = diversity['Diversity']
         with open (os.path.join(self._result_dir, 'summary.txt'), 'w') as f:
             f.write('-------------------Summary-------------------\n')
@@ -692,6 +714,7 @@ class Evaluator:
 @hydra.main(version_base=None, config_path="../../config", config_name="motif_scaffolding.yaml")
 def run(conf: DictConfig) -> None:
     
+    # Perform fixed backbone design and forward folding
     print('Starting refolding for motif-scaffolding task......')
     start_time = time.time()
     refolder = Refolder(conf)
@@ -699,6 +722,7 @@ def run(conf: DictConfig) -> None:
     elapsed_time = time.time() - start_time
     print(f"Refolding finished in {elapsed_time:.2f}s.")
 
+    # Perform analysis on outputs
     start_time = time.time()
     evaluator = Evaluator(conf)
     evaluator.run_evaluation()
