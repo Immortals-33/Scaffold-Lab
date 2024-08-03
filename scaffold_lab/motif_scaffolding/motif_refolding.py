@@ -25,7 +25,7 @@ import rootutils
 import shutil
 import GPUtil
 from pathlib import Path
-from typing import *
+from typing import Optional
 from omegaconf import DictConfig, OmegaConf
 
 import esm
@@ -118,7 +118,7 @@ class Refolder:
         # Configs for motif-scaffolding
         if self._infer_conf.motif_csv_path is not None:
             self._motif_csv = self._infer_conf.motif_csv_path
-        self._input_pdbs_dir = self._infer_conf.input_pdbs_dir
+        self._native_pdbs_dir = self._infer_conf.native_pdbs_dir
         
         # Save config
         config_folder = os.path.basename(Path(self._output_dir))
@@ -173,9 +173,9 @@ class Refolder:
                     chain_B_indices = list(range(start, end + 1))
                 
                 if '_' in backbone_name: # Handle length-variable design for different PDB cases
-                    reference_pdb = os.path.join(self._input_pdbs_dir, f'{backbone_name.split("_")[0]}.pdb')
+                    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name.split("_")[0]}.pdb')
                 else:
-                    reference_pdb = os.path.join(self._input_pdbs_dir, f'{backbone_name}.pdb')
+                    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
                 design_pdb = os.path.join(self._sample_dir, pdb_file)
                 
                 # Extract motif and calculate motif-RMSD
@@ -633,7 +633,7 @@ class Evaluator:
             merged_data=merged_csv_path,
             group_mode='all'
         )
-        self._log.info(f'Designable backbones in {self._result_dir}: {designability_count}.')
+        self._log.info(f'Designable backbones for {self._result_dir}: {designability_count}.')
 
         updated_data.to_csv(merged_csv_path, index=False)
 

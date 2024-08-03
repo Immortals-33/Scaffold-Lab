@@ -24,7 +24,7 @@ import rootutils
 import shutil
 import GPUtil
 from pathlib import Path
-from typing import *
+from typing import Optional
 from omegaconf import DictConfig, OmegaConf
 
 import esm

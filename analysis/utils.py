@@ -8,7 +8,7 @@ import json
 import logging
 import glob
 import pandas as pd
-from typing import *
+from typing import Optional, Union, List, Tuple, Dict
 from pathlib import Path
 from datetime import datetime
 
@@ -584,9 +584,24 @@ def write_contig_into_header(
 def csv_merge(
     root_dir: Union[str, Path], 
     prefix: str = "esm",
-    ) -> pd.DataFrame:
-    merged_data = pd.DataFrame()
+    ) -> Tuple[pd.DataFrame, int]:
+    """
+    Merge evaluation results from different backbones into a single Dataframe file.
 
+    Args:
+        root_dir (Union[str, Path]): Root directory to search evaluation results. 
+        prefix (str): Prefix to merge files. Default = 'esm', alternative = 'af2' or 'joint'.
+
+    Returns:
+        A tuple object containing:
+            1. The merged dataframe containing all evaluation results for one input folder.
+            2. The count of files included in the input folder. Useful when calculating proportion of designability or novelty.
+    """
+    if prefix not in ['esm', 'af2', 'joint']:
+        raise ValueError("Prefix must be 'esm', 'af2' or 'joint'!")
+
+    merged_data = pd.DataFrame()
+    log.info(f'Merging evaluation results from {root_dir}......')
     file_count = 0
     for root, dirs, files in os.walk(root_dir):
         for file in files:
@@ -596,7 +611,7 @@ def csv_merge(
                 df = pd.read_csv(csv_path)
 
                 parent_dir = os.path.abspath(os.path.join(root, os.pardir))
-                print(parent_dir)
+                #print(parent_dir)
                 pdb_files = glob.glob(os.path.join(parent_dir, '*.pdb'))
                 
                 # Check if there is more than one .pdb file
@@ -613,6 +628,8 @@ def csv_merge(
                     df['folding_method'] = 'AlphaFold2'
 
                 merged_data = pd.concat([merged_data, df], ignore_index=True)
+
+    log.info(f'Collected evaluation results from {file_count} protein backbones.')
     
     return merged_data, file_count
 

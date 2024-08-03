@@ -6,7 +6,7 @@ import argparse
 import psutil
 import time
 import typing as T
-from typing import *
+from typing import Optional, Union, List, Tuple, Dict
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
