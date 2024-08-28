@@ -1,4 +1,5 @@
 import os
+import shutil
 import numpy as np
 import pandas as pd
 import subprocess
@@ -13,9 +14,9 @@ from pathlib import Path
 Diversity Calculation.
 
 Use Foldseek-Cluster to hierarchically cluster given sets of structures.
-Input: A dictionary consisting of different methods and their corresponding paths, 
+Input: A dictionary consisting of different methods and their corresponding paths,
        where structures of different lengths are saved under those paths.
-Output: A `pd.DataFrame` object. 
+Output: A `pd.DataFrame` object.
 
 See example usage below and Foldseek-cluster (https://github.com/steineggerlab/foldseek?tab=readme-ov-file#cluster)
 for further information and customized parameters.
@@ -35,14 +36,22 @@ def foldseek_cluster(
     save_tmp: bool=False,
     foldseek_path: Optional[Union[str, Path]] = None
 ) -> Union[float, dict]:
-    
+
     if not os.listdir(input):
         return {"Clusters": 0, "Samples": 0, "Diversity": 0} if output_mode == 'DICT' else 0
     tmp_path = os.path.join(input, 'tmp')
+    if os.path.exists(tmp_path) or os.path.islink(tmp_path):
+        if os.path.islink(tmp_path):
+            target_path = os.readlink(tmp_path)
+        else:
+            target_path = tmp_path
+        shutil.rmtree(target_path)
+        assert not os.path.exists(tmp_path), tmp_path + "still exists"
+
     os.makedirs(tmp_path, exist_ok=True)
 
     output_prefix = os.path.join(input, 'diversity')
-    
+
     cmd = f'foldseek easy-cluster \
             {input} \
             {output_prefix} \
@@ -50,10 +59,10 @@ def foldseek_cluster(
             --alignment-type {alignment_type} \
             --tmscore-threshold {tmscore_threshold} \
             --alignment-mode 2'
-            
+
     if foldseek_path is not None:
         cmd.replace('foldseek', foldseek_path)
-        
+
     assist_num = 0
     try:
         subprocess.run(cmd, shell=True, check=True)
@@ -64,14 +73,14 @@ def foldseek_cluster(
         subprocess.run(cmd, shell=True, check=True)
         assist_num += 1
 
-    
+
     result = pd.read_csv(f'{output_prefix}_cluster.tsv', sep='\t', header=None, names=['clusters', 'members'])
     unique_clusters = result['clusters'].nunique() - assist_num
     total_members = len(result) - assist_num
     diversity = round(unique_clusters / total_members, 3)
-    
+
     if not save_tmp:
-        os.remove(f'{output_prefix}_cluster.tsv') 
+        os.remove(f'{output_prefix}_cluster.tsv')
         os.remove(f'{output_prefix}_rep_seq.fasta')
         os.remove(f'{output_prefix}_all_seqs.fasta')
 
@@ -84,7 +93,7 @@ def foldseek_cluster(
         return diversity
     elif output_mode == 'DICT':
         return {"Clusters": unique_clusters, "Samples": total_members, "Diversity": diversity}
-        
+
 
 def process_directories(methods_dict: Dict[str, List[str]]) -> pd.DataFrame:
     rows = []
@@ -124,7 +133,7 @@ Here, the `methods_dict` is a dictionary like:
 }
 where it is organized like {method_name}-[List of PDB folders to be clustered]
 Then the results will be written into a `pd.DataFrame` object.
-Also,  
+Also,
 """
 #results_df.to_csv("TM_0.5_diversity_results.csv", index=False)
 

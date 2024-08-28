@@ -15,12 +15,13 @@ inference:
   native_pdbs_dir: ./demo/motif_scaffolding/reference_pdbs/
   
   # Setting of ProteinMPNN
-  CA_only: False
+  CA_only: True
+  hide_GPU_from_pmpnn: False
 
   samples:
     # Number of ProteinMPNN sequences sampled per backbone.
-    seq_per_sample: 10
-    mpnn_batch_size: 1
+    seq_per_sample: 8
+    mpnn_batch_size: 8
     sort_by_score: False
 
   predict_method: [ESMFold]
