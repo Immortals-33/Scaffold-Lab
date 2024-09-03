@@ -25,7 +25,7 @@ import rootutils
 import shutil
 import GPUtil
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Union, List
 from omegaconf import DictConfig, OmegaConf
 
 import esm
@@ -681,7 +681,7 @@ class Evaluator:
 
         # Novelty Calculation
         if len(os.listdir(successful_backbone_dir)) > 0: 
-            success_results = updated_data[updated_data['Success'] == True]
+            success_results = updated_data[updated_data['success'] == True]
             results_with_novelty = nu.calculate_novelty(
                 input_csv=success_results,
                 foldseek_database_path=self._eval_conf.foldseek_database,

@@ -492,8 +492,11 @@ def generate_indices_and_mask(contig: str) -> Tuple[int, List[int], np.ndarray]:
         else:
             # Scaffold part
             if '-' in part:
-                raise ValueError(f'There is "-" in scaffold {part}, which supposed to be determined already! Please check again.')
-            length = int(part)
+                assert part.split('-')[0] == part.split('-')[-1]
+                length = int(part.split('-')[0])
+                #raise ValueError(f'There is "-" in scaffold {part}, which supposed to be determined already! Please check again.')
+            else:
+                length = int(part)
             motif_mask.extend([False] * length)
         
         current_position += length  # Update the current position after processing each part
@@ -638,19 +641,19 @@ def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode
     # Define success criteria for each sample
     merged_data = pd.read_csv(merged_data) if isinstance(merged_data, str) or isinstance(merged_data, Path) else merged_data
     
-    merged_data['all_success'] = (merged_data['tm_score'] >= 0.5) & (merged_data['motif_rmsd'] < 1) & (merged_data['pae'] < 5)
-    merged_data['backbone_success'] = (merged_data['rmsd'] < 2)
-    merged_data['motif_success'] = (merged_data['motif_rmsd'] < 1)
+    merged_data['seq_hit'] = (merged_data['tm_score'] >= 0.5) & (merged_data['motif_rmsd'] < 1) & (merged_data['pae'] < 5)
+    merged_data['seq_backbone_hit'] = (merged_data['rmsd'] < 2)
+    merged_data['seq_motif_hit'] = (merged_data['motif_rmsd'] < 1)
 
     # Group by 'backbone_path' and aggregate the success criteria
     group_success = merged_data.groupby('backbone_path').agg({
-        'all_success': 'any',
-        'backbone_success': 'any',
-        'motif_success': 'any'
+        'seq_hit': 'any',
+        'seq_backbone_hit': 'any',
+        'seq_motif_hit': 'any'
     }).rename(columns={
-        'all_success': 'Success',
-        'backbone_success': 'Backbone_Success',
-        'motif_success': 'Motif_Success'
+        'seq_hit': 'success',
+        'seq_backbone_hit': 'backbone_success',
+        'seq_motif_hit': 'motif_success'
     })
 
     # Join the aggregated results back to the original DataFrame
@@ -658,13 +661,13 @@ def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode
     
     successful_backbones = set()
     if group_mode == 'all':
-        success_count = merged_data[merged_data['Success'] == True]['backbone_path'].nunique()
-        successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
+        success_count = merged_data[merged_data['success'] == True]['backbone_path'].nunique()
+        successful_backbones = set(merged_data[merged_data['success'] == True]['backbone_path'])
     elif group_mode == 'PDB id':
         success_count = dict.fromkeys(merged_data['PDB id'].unique(), 0)
-        success_per_pdb = merged_data[merged_data['Success'] == True].groupby('PDB id')['backbone_path'].nunique()
+        success_per_pdb = merged_data[merged_data['success'] == True].groupby('PDB id')['backbone_path'].nunique()
         success_count.update(success_per_pdb.to_dict())
-        successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
+        successful_backbones = set(merged_data[merged_data['success'] == True]['backbone_path'])
     
     return merged_data, success_count, successful_backbones
 
