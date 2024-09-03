@@ -37,7 +37,7 @@ def motif_extract(
     """Extracting motif positions from input protein structure.
 
     Args:
-        position (str): Motif region of input protein. DEMO: "A1-7/A28-79" corresponds defines res1-7 and res28-79 in chain A to be motif. 
+        position (str): Motif region of input protein. DEMO: "A1-7/A28-79" corresponds defines res1-7 and res28-79 in chain A to be motif.
         structure_path (Union[str, None]): Input protein structure, can either be a path or an AtomArray.
         atom_part (str, optional): _description_. Defaults to "all".
         split_char (str): Spliting character between discontinuous motifs. Defaults to "/".
@@ -45,13 +45,13 @@ def motif_extract(
     Returns:
         motif (biotite.structure.AtomArray): The motif positions extracted by user-specified way (all-atom / CA / backbone)
     """
-    
+
     position = position.split(split_char)
     if isinstance(structure_path, str):
         array = strucio.load_structure(structure_path, model=1)
     else:
         array = structure_path
-        
+
     motif_array = []
     for i in position:
         chain_id = i[0]
@@ -63,14 +63,14 @@ def motif_extract(
             #print(start, end)
             log.info(f'Motif position from {start} to {end}')
             start, end = int(start), int(end)
-            
+
         if atom_part == "all-atom":
             motif_array.append(array[(array.chain_id==chain_id) & (array.res_id <= end) & (array.res_id >= start) & (array.hetero==False)])
         elif atom_part == "CA":
             motif_array.append(array[(array.chain_id==chain_id) & (array.res_id <= end) & (array.res_id >= start) & (array.hetero==False) & (array.atom_name=="CA")])
         elif atom_part == "backbone":
             motif_array.append(array[(array.chain_id==chain_id) & (array.res_id <= end) & (array.res_id >= start) & (array.hetero==False) & ((array.atom_name=="N") | (array.atom_name=="CA")| (array.atom_name=="C") | (array.atom_name=="O"))])
-            
+
     motif = motif_array[0]
     for i in range(len(motif_array) - 1):
         motif += motif_array[i + 1]
@@ -79,15 +79,15 @@ def motif_extract(
 def rmsd(
     reference: Union[str, struc.AtomArray],
     target: Union[str, struc.AtomArray],
-    
+
 ) -> float:
-    
+
     # Handle input protein type
     if isinstance(reference, str):
         reference = strucio.load_structure(reference, model=1)
     if isinstance(target, str):
         target = strucio.load_structure(target, model=1)
-        
+
     mask_reference = (((reference.atom_name == "N") | (reference.atom_name == "CA") | (reference.atom_name == "C") | (reference.atom_name == "O")) & (biotite.structure.filter_amino_acids(reference)))
     reference = reference[mask_reference]
     mask_target = (((target.atom_name == "N") | (target.atom_name == "CA") | (target.atom_name == "C") | (target.atom_name == "O")) & (biotite.structure.filter_amino_acids(target)) )
@@ -108,7 +108,7 @@ def calculate_secondary_structure(
     app.join()
     sse = app.get_sse()
     sse_format = "".join(sse)
-    
+
     alpha_composition = (sse_format.count("H") + sse_format.count("G") + sse_format.count("I")) / len(sse_format) if len(sse_format) > 0 else 0
     beta_composition = (sse_format.count("B") + sse_format.count("E")) / len(sse_format) if len(sse_format) > 0 else 0
     coil_composition = (sse_format.count("C") + sse_format.count("S")) / len(sse_format) if len(sse_format) > 0 else 0
@@ -124,7 +124,7 @@ def radius_of_gyration(
     if atom_part == 'all-atom':
         rg = t.atoms.radius_of_gyration()
     if atom_part == 'backbone':
-        backbone = t.select_atoms("backbone") 
+        backbone = t.select_atoms("backbone")
         rg = backbone.atoms.radius_of_gyration()
     if atom_part == 'CA':
         c_alpha = t.select_atoms("name CA")
@@ -199,7 +199,7 @@ def parse_pdb_feats(
     ):
     """
     Only used in inference procedure to prepare ESMFold prediction.
-    
+
     Args:
         pdb_name: name of PDB to parse.
         pdb_path: path to PDB file to read.
@@ -239,7 +239,7 @@ def parse_pdb_feats(
 
 def randomly_select_and_copy_pdb_files(src_folder, dst_folder, num_files):
     """
-    Randomly select and copy a specified number of PDB files 
+    Randomly select and copy a specified number of PDB files
     from a source folder to a destination folder.
 
     :param src_folder: Path to the source folder containing PDB files.
@@ -328,7 +328,7 @@ def get_csv_data(
         sample_num (Union[str, int]): Number of samples with format {pdb_name}_{sample_num}.pdb. e.g. 2KL8_33.pdb -> 33
 
     Returns:
-        Tuple: A tuple containing information from each column. 
+        Tuple: A tuple containing information from each column.
             contig (str): Motif and scaffold information, where motifs start with characters and scaffolds start with numbers.
             mask (str): 1D boolean array containing motif positions. True -> motif, False -> scaffold
             motif_indices (str): List containing motif positions
@@ -357,12 +357,12 @@ def get_csv_data(
 
 
 def motif_indices_to_contig(motif_indices: Union[List, str]) -> str:
-    """Extract motif contig from overall contig. 
+    """Extract motif contig from overall contig.
     e.g. "A1-7/20-20/A28-79" -> "A1-7/A28-79"
     TBD: Support multiple chains beyond chain A.
-    
+
     Args:
-        motif_indices (str): The str object of motif list from "motif_indices" returned by `get_csv_data()`. 
+        motif_indices (str): The str object of motif list from "motif_indices" returned by `get_csv_data()`.
 
     Returns:
         contig: Contig containing motif information.
@@ -398,7 +398,7 @@ def motif_indices_to_contig(motif_indices: Union[List, str]) -> str:
 def motif_indices_to_fixed_positions(motif_indices: Union[str, List]) -> str:
     """Converts motif indices to the fixed positions string format compatible with ProteinMPNN.
     e.g. [1, 2, 3, 4, 5, 8, 9] -> "1 2 3 4 5 8 9"
-    
+
     Args:
         motif_indices (Union[str, List]): List-like motif indices.
 
@@ -436,14 +436,14 @@ def introduce_redesign_positions(
 
     Args:
         fix_positions (Union[List, str]): Fixed positions
-        redesign_positions (str): Redesigned list from "redesign_positions" returned by `get_csv_data()`. 
+        redesign_positions (str): Redesigned list from "redesign_positions" returned by `get_csv_data()`.
 
     Returns:
         List: A list of fixed positions for ProteinMPNN, laterly as input for `motif_indices_to_fixed_positions`.
     """
     if isinstance(fix_positions, list):
         fix_positions = str(fix_positions)
-    
+
     pos_to_redesign = parse_contig_string(redesign_positions)
     redesign_pos = []
     for seg in pos_to_redesign:
@@ -456,13 +456,13 @@ def generate_indices_and_mask(contig: str) -> Tuple[int, List[int], np.ndarray]:
     """Index motif and scaffold positions by contig for sequence redesign.
     Args:
         contig (str): A string containing positions for scaffolds and motifs.
-        
+
         Details:
         Scaffold parts: Contain a single integer.
         Motif parts: Start with a letter (chain ID) and contain either a single positions (e.g. A33) or a range of positions (e.g. A33-39).
-        The numbers following chain IDs corresponds to the motif positions in native backbones, which are used to calculate motif reconstruction later on. 
+        The numbers following chain IDs corresponds to the motif positions in native backbones, which are used to calculate motif reconstruction later on.
         e.g. "15/A45-65/20/A20-30"
-        NOTE: The scaffold part should be DETERMINISTIC in this case as it contains information for the corresponding protein backbones. 
+        NOTE: The scaffold part should be DETERMINISTIC in this case as it contains information for the corresponding protein backbones.
 
     Raises:
         ValueError: Once a "-" is detected in scaffold parts, throws an error for the aforementioned reason.
@@ -492,13 +492,10 @@ def generate_indices_and_mask(contig: str) -> Tuple[int, List[int], np.ndarray]:
         else:
             # Scaffold part
             if '-' in part:
-                assert part.split('-')[0] == part.split('-')[-1]
-                length = int(part.split('-')[0])
-                #raise ValueError(f'There is "-" in scaffold {part}, which supposed to be determined already! Please check again.')
-            else:
-                length = int(part)
+                raise ValueError(f'There is "-" in scaffold {part}, which supposed to be determined already! Please check again.')
+            length = int(part)
             motif_mask.extend([False] * length)
-        
+
         current_position += length  # Update the current position after processing each part
 
     # Convert motif_mask to a numpy array for more efficient boolean operations
@@ -521,20 +518,20 @@ def get_redesign_positions(pdb_path: Union[str, Path]) -> Tuple[List[int], List[
     """
     all_atom_array = strucio.load_structure(pdb_path)
     ca_array = all_atom_array[(all_atom_array.atom_name == "CA")] # Get C-alpha array for convenience of indexing
-    
+
     # Get three lists to iterate
     res_id_list = ca_array.res_id
     chain_id_list = ca_array.chain_id
     res_name_list = ca_array.res_name
-    
+
     if 'UNK' in res_name_list:
         redesign_positions = [index for index, resname in zip(res_id_list, res_name_list) if resname == "UNK"]
         redesign_chain_positions = [f"{chain_id_list[idx]}{res_id_list[idx]}" for idx, resname in enumerate(res_name_list) if resname == "UNK"]
-        
+
         formatted_chain_positions = format_chain_positions(redesign_chain_positions)
-    
+
         return(redesign_positions, redesign_chain_positions, formatted_chain_positions)
-    
+
     else:
         return None
 
@@ -550,7 +547,7 @@ def read_contig_from_header(pdb_path: Union[str, Path]) -> Optional[Tuple[str, s
     Returns:
         contig (str): The contig information for where motifs and scaffolds are placed.
         identifier (str): The file name of input PDB file.
-        
+
         If HEADER couldn't be parsed, then it's either because problem in format or
         you use csv instead of HEADER to load contig information. Return nothing in this case.
     """
@@ -576,7 +573,7 @@ def write_contig_into_header(
     #identifier = os.path.basename(pdb_path).strip('.pdb') if write_additional_info else ""
     header_string = f"HEADER    {contig:<40}{date:>9}\n"
     save_path = output_path if output_path is not None else pdb_path
-    
+
     with open(pdb_path, "r") as f:
         file_lines = f.readlines()
         file_lines.insert(0, header_string)
@@ -585,14 +582,14 @@ def write_contig_into_header(
 
 
 def csv_merge(
-    root_dir: Union[str, Path], 
+    root_dir: Union[str, Path],
     prefix: str = "esm",
     ) -> Tuple[pd.DataFrame, int]:
     """
     Merge evaluation results from different backbones into a single Dataframe file.
 
     Args:
-        root_dir (Union[str, Path]): Root directory to search evaluation results. 
+        root_dir (Union[str, Path]): Root directory to search evaluation results.
         prefix (str): Prefix to merge files. Default = 'esm', alternative = 'af2' or 'joint'.
 
     Returns:
@@ -616,7 +613,7 @@ def csv_merge(
                 parent_dir = os.path.abspath(os.path.join(root, os.pardir))
                 #print(parent_dir)
                 pdb_files = glob.glob(os.path.join(parent_dir, '*.pdb'))
-                
+
                 # Check if there is more than one .pdb file
                 if len(pdb_files) > 1:
                     raise RuntimeError(f"More than one .pdb file found in {parent_dir}")
@@ -632,19 +629,24 @@ def csv_merge(
 
                 merged_data = pd.concat([merged_data, df], ignore_index=True)
 
+    merged_data.drop(columns=["header", "refold_motif_rmsd", "ptm", "pae",
+    "plddt", "folding_method", "Success", "Backbone_Success", "Motif_Success",
+    "backbone_motif_rmsd", "mpnn_score", "tm_score"], errors='ignore', inplace=True)
+
     log.info(f'Collected evaluation results from {file_count} protein backbones.')
-    
+
     return merged_data, file_count
 
 
 def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode="all"):
     # Define success criteria for each sample
     merged_data = pd.read_csv(merged_data) if isinstance(merged_data, str) or isinstance(merged_data, Path) else merged_data
-    
-    merged_data['seq_hit'] = (merged_data['tm_score'] >= 0.5) & (merged_data['motif_rmsd'] < 1) & (merged_data['pae'] < 5)
-    merged_data['seq_backbone_hit'] = (merged_data['rmsd'] < 2)
-    merged_data['seq_motif_hit'] = (merged_data['motif_rmsd'] < 1)
 
+    merged_data['backbone_success'] = (merged_data['rmsd'] < 2)
+    merged_data['motif_success'] = (merged_data['motif_rmsd'] < 1)
+>>>>>>> forked-brian/main
+
+    merged_data['all_success'] = merged_data['motif_success'] & merged_data['backbone_success']
     # Group by 'backbone_path' and aggregate the success criteria
     group_success = merged_data.groupby('backbone_path').agg({
         'seq_hit': 'any',
@@ -658,7 +660,7 @@ def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode
 
     # Join the aggregated results back to the original DataFrame
     merged_data = merged_data.merge(group_success, on='backbone_path', how='left')
-    
+
     successful_backbones = set()
     if group_mode == 'all':
         success_count = merged_data[merged_data['success'] == True]['backbone_path'].nunique()
@@ -667,15 +669,17 @@ def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode
         success_count = dict.fromkeys(merged_data['PDB id'].unique(), 0)
         success_per_pdb = merged_data[merged_data['success'] == True].groupby('PDB id')['backbone_path'].nunique()
         success_count.update(success_per_pdb.to_dict())
-        successful_backbones = set(merged_data[merged_data['success'] == True]['backbone_path'])
-    
+
+        successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
+
+>>>>>>> forked-brian/main
     return merged_data, success_count, successful_backbones
 
 
 def format_chain_positions(positions: List[str]) -> str:
     if not positions:
         return ""
-    
+
     formatted_positions = []
     current_chain = positions[0][0]
     start_num = int(positions[0][1:])
@@ -692,13 +696,13 @@ def format_chain_positions(positions: List[str]) -> str:
                 formatted_positions.append(f"{current_chain}{start_num}-{end_num}")
             current_chain = chain
             start_num = end_num = num
-    
+
     # Append the last range or number
     if start_num == end_num:
         formatted_positions.append(f"{current_chain}{start_num}")
     else:
         formatted_positions.append(f"{current_chain}{start_num}-{end_num}")
-    
+
     return ";".join(formatted_positions)
 
 
@@ -719,7 +723,7 @@ def parse_input_scaffold(
             redesign_idx = get_redesign_positions(pdb_path)[2]
     else:
         raise ValueError(f'Incorrect format for contig {contig}! Please check again.')
-    
+
     #native_motif = benchmark_csv.iloc[pdb_id][0][1] # Need to be changed, structure of input motif
     design_motif = motif_extract(motif_spec, pdb_path, atom_part='backbone') # structure of designed motif
 

@@ -110,11 +110,21 @@ python scaffold_lab/unconditional/refolding.py
 
 ### Conditional Generation (Motif-scaffolding)
 
+It is first necessary to download the foldseek PDB database.  Within the conda environment, run:
+```
+mkdir <fold_seq_pdb_database_path>
+cd <fold_seq_pdb_database_path>
+foldseek databases PDB pdb tmp
+```
+
+
 To run a minimal version on motif-scaffolding task, simply run:
 
 ```bash
-python scaffold_lab/motif_scaffolding/motif_refolding.py
+python scaffold_lab/motif_scaffolding/motif_refolding.py evaluation.foldseek_database=<fold_seq_pdb_database_path>/pd
 ```
+
+
 
 This performs a evaluation on `demo/motif_scaffolding/2KL8/` where the outputs would be saved under `outputs/2KL8/`.
 
