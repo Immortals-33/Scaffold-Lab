@@ -76,7 +76,17 @@ pip install hydra-joblib-launcher --upgrade
 pip install ml-collections GPUtil hjson h5py
 ```
 
+You may also need to build a Foldseek database for diversity and novelty calculation.
 
+Within the conda environment, run:
+
+```bash
+mkdir <foldseek_pdb_database_path>
+cd <foldseek_pdb_database_path>
+foldseek databases PDB pdb tmp
+```
+
+After successfully building a PDB database of Foldseek, you can save the `<foldseek_pdb_database_path>` as a record and lately specify it your foldseek database path either using config or directly by command-line usage, whose demo is provided below. 
 
 ***
 
@@ -110,21 +120,12 @@ python scaffold_lab/unconditional/refolding.py
 
 ### Conditional Generation (Motif-scaffolding)
 
-It is first necessary to download the foldseek PDB database.  Within the conda environment, run:
-```
-mkdir <fold_seq_pdb_database_path>
-cd <fold_seq_pdb_database_path>
-foldseek databases PDB pdb tmp
-```
-
 
 To run a minimal version on motif-scaffolding task, simply run:
 
 ```bash
-python scaffold_lab/motif_scaffolding/motif_refolding.py evaluation.foldseek_database=<fold_seq_pdb_database_path>/pd
+python scaffold_lab/motif_scaffolding/motif_refolding.py evaluation.foldseek_database=<foldseek_pdb_database_path> # Specify the path of your Foldseek database directly
 ```
-
-
 
 This performs a evaluation on `demo/motif_scaffolding/2KL8/` where the outputs would be saved under `outputs/2KL8/`.
 
@@ -206,4 +207,13 @@ url = {https://www.biorxiv.org/content/10.1101/2024.02.10.579743v3}
 
 ## Acknowledgments
 
-This codebase benefits a lot from [FrameDiff](https://github.com/jasonkyuyim/se3_diffusion), [OpenFold](https://github.com/aqlaboratory/openfold) and some other amazing open-source projects. Take a look at their work if you find Scaffold-Lab is helpful!
+### Open-source Projects
+
+This codebase benefits a lot from [FrameDiff](https://github.com/jasonkyuyim/se3_diffusion), [OpenFold](https://github.com/aqlaboratory/openfold), [ProteinMPNN](https://github.com/dauparas/ProteinMPNN) and some other amazing open-source projects. Take a look at their work if you find Scaffold-Lab is helpful!
+
+### Individuals
+
+We thank the following ones for contributing or pointing out potential bugs for improvements:
+
+* [Brian Trippe](https://github.com/blt2114)
+* [Tao Guo](https://github.com/Guo-Stone)
