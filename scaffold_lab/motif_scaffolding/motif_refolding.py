@@ -13,6 +13,7 @@ To run ESMFold and AlphaFold2 simultaneously:
 import os
 import tree
 import time
+import json
 import numpy as np
 import hydra
 import torch
@@ -137,7 +138,9 @@ class Refolder:
 
 
     def run_sampling(self):
+        
         # Run ProteinMPNN
+        motif_info_dict = {}
 
         for pdb_file in os.listdir(self._sample_dir):
             if ".pdb" in pdb_file:
@@ -146,6 +149,7 @@ class Refolder:
                 parts = backbone_name.split('_')
                 backbone_name = parts[0] if len(parts) == 2 else '_'.join(parts[:-1])
 
+                # Read motif information data and save into json file
                 if os.path.exists(self._motif_csv):
                     csv_data = au.get_csv_data(self._motif_csv, backbone_name, sample_num)
                 else:
@@ -153,9 +157,15 @@ class Refolder:
                         os.path.join(self._sample_dir, pdb_file))
 
                 if csv_data == None:
-                    print(pdb_file, "missing entry in motif_csv... skipping")
+                    self._log.warning(f'Motif information is missing for {pdb_file}. Skipping...')
                     continue
                 contig, mask, motif_indices, redesign_info = csv_data
+                
+                motif_info_dict[f'{backbone_name}_{sample_num}'] = {
+                    "contig": contig,
+                    "motif_idx": motif_indices,
+                    "redesign_info": redesign_info
+                }
 
                 # Deal with contig
                 if 'IL17RA' in pdb_file:
@@ -236,6 +246,11 @@ class Refolder:
                         sample_contig=design_contig
                     )
                 self._log.info(f'Done sample: {pdb_path}')
+        
+        output_json_path = os.path.join(self._output_dir, (os.path.basename(os.path.normpath(self._sample_dir))), 'motif_info.json')
+        with open(output_json_path, 'w') as json_file:
+            json.dump(motif_info_dict, json_file, indent=4)
+        self._log.info(f'Motif information saved into {output_json_path}')
 
     def run_self_consistency(
             self,
@@ -331,7 +346,7 @@ class Refolder:
 
         while ret < 0:
             try:
-                print("trying...")
+                print("Running ProteinMPNN...")
                 # Setting CUDA_VISIBLE_DEVICES to an empty string to hide all GPUs
                 env = os.environ.copy()
                 if self._hide_GPU_from_pmpnn:
@@ -700,13 +715,8 @@ class Evaluator:
 
 
         # Novelty Calculation
-<<<<<<< HEAD
-        if len(os.listdir(successful_backbone_dir)) > 0: 
-            success_results = updated_data[updated_data['success'] == True]
-=======
         if len(os.listdir(successful_backbone_dir)) > 0:
             success_results = updated_data[updated_data['Success'] == True]
->>>>>>> forked-brian/main
             results_with_novelty = nu.calculate_novelty(
                 input_csv=success_results,
                 foldseek_database_path=self._eval_conf.foldseek_database,

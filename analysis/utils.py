@@ -629,9 +629,9 @@ def csv_merge(
 
                 merged_data = pd.concat([merged_data, df], ignore_index=True)
 
-    merged_data.drop(columns=["header", "refold_motif_rmsd", "ptm", "pae",
-    "plddt", "folding_method", "Success", "Backbone_Success", "Motif_Success",
-    "backbone_motif_rmsd", "mpnn_score", "tm_score"], errors='ignore', inplace=True)
+    #merged_data.drop(columns=["header", "refold_motif_rmsd", "ptm", "pae",
+    #"plddt", "folding_method", "Success", "Backbone_Success", "Motif_Success",
+    #"backbone_motif_rmsd", "mpnn_score", "tm_score"], errors='ignore', inplace=True)
 
     log.info(f'Collected evaluation results from {file_count} protein backbones.')
 
@@ -644,7 +644,9 @@ def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode
 
     merged_data['backbone_success'] = (merged_data['rmsd'] < 2)
     merged_data['motif_success'] = (merged_data['motif_rmsd'] < 1)
->>>>>>> forked-brian/main
+    merged_data['seq_hit'] = (merged_data['tm_score'] >= 0.5) & (merged_data['motif_rmsd'] < 1)
+    merged_data['seq_backbone_hit'] = (merged_data['rmsd'] < 2)
+    merged_data['seq_motif_hit'] = (merged_data['motif_rmsd'] < 1)
 
     merged_data['all_success'] = merged_data['motif_success'] & merged_data['backbone_success']
     # Group by 'backbone_path' and aggregate the success criteria
@@ -672,7 +674,6 @@ def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode
 
         successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
 
->>>>>>> forked-brian/main
     return merged_data, success_count, successful_backbones
 
 
