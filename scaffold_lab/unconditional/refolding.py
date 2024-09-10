@@ -24,7 +24,7 @@ import rootutils
 import shutil
 import GPUtil
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, List, Union
 from omegaconf import DictConfig, OmegaConf
 
 import esm
@@ -255,26 +255,33 @@ class Refolder:
         esmf_dir = os.path.join(decoy_pdb_dir, 'esmf')
         af2_raw_dir = os.path.join(decoy_pdb_dir, 'af2_raw_outputs')
         fasta_seqs = fasta.FastaFile.read(mpnn_fasta_path)
+        filtered_seqs = {header: seq for header, seq in fasta_seqs.items() if header.startswith("T=0")} # Drop original sequence
         
         if self._sample_conf.sort_by_score:
         # Only take seqs with lowerst global score to enter refolding
             scores = []
-            for i, (header, string) in enumerate(fasta_seqs.items()):
-                if i == 0:
-                    global_score = float(header.split(", ")[2].split("=")[1])
-                    original_seq = (global_score, header, string)
-                else: 
-                    global_score = float(header.split(", ")[3].split("=")[1])
-                    scores.append((global_score, header, string))
+            for i, (header, string) in enumerate(filtered_seqs.items()):
+                #if i == 0:
+                #    global_score = float(header.split(", ")[2].split("=")[1])
+                #    original_seq = (global_score, header, string)
+                #else:
+                global_score = float(header.split(", ")[3].split("=")[1])
+                scores.append((global_score, header, string))
             scores.sort(key=lambda x: x[0])
-            top_seqs = scores[:10]
-            top_seqs.insert(0, original_seq) # Include the original seq
+
+            top_seqs_list = scores[:self._sample_conf.seq_per_sample]
+            #top_seqs_list.insert(0, original_seq) # Include the original seq
+            top_seqs = {header: seq for _, header, seq in top_seqs_list}
             top_seqs_path = os.path.join(
                 decoy_pdb_dir,
                 'seqs',
                 f'top_score_{os.path.basename(reference_pdb_path)}'.replace('.pdb', '.fa')
             )
             _ = au.write_seqs_to_fasta(top_seqs, top_seqs_path)
+        else:
+            filtered_seqs = {header: seq for header, seq in fasta_seqs.items() if header.startswith("T=0")}
+            #print(f'filtered_seqs: {filtered_seqs}')
+            _ = au.write_seqs_to_fasta(filtered_seqs, mpnn_fasta_path)
         
         seqs_to_refold = top_seqs_path if self._sample_conf.sort_by_score else mpnn_fasta_path
         seqs_dict = fasta.FastaFile.read(seqs_to_refold)

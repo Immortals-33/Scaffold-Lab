@@ -68,7 +68,9 @@ We present the benchmark for both unconditional generation and conditional gener
 To quickly set up an environment, just simply run:
 
 ```bash
-conda create -f scaffold-lab.yml
+# Clone this repository and set up environment
+git clone https://github.com/Immortals-33/Scaffold-Lab.git
+conda env create -f scaffold-lab.yml
 source activate scaffold-lab
 # You may also need to install some dependencies manually in certain cases
 pip install hydra-core --upgrade
@@ -193,15 +195,17 @@ And voilà!
 
 If you use Scaffold-Lab in your research or find it helpful, please cite:
 
-```tex
+```bibtex
 @article{zheng2024scaffoldlab,
 title = {Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework},
-author = {Zhuoqi, Zheng and Bo, Zhang and Bozitao, Zhong and Kexin, Liu and Zhengxin, Li and Junjie, Zhu and Jinyu, Yu and Ting, Wei and Haifeng, Chen},
+author = {Zheng, Zhuoqi and Zhang, Bo and Zhong, Bozitao and Liu, Kexin and Li, Zhengxin and Zhu, Junjie and Yu, Jinyu and Wei Ting and Chen, Haifeng},
 year = {2024},
 journal = {bioRxiv},
 url = {https://www.biorxiv.org/content/10.1101/2024.02.10.579743v3}
 }
 ```
+
+
 
 ***
 
@@ -216,4 +220,4 @@ This codebase benefits a lot from [FrameDiff](https://github.com/jasonkyuyim/se3
 We thank the following ones for contributing or pointing out potential bugs for improvements:
 
 * [Brian Trippe](https://github.com/blt2114)
-* [Tao Guo](https://github.com/Guo-Stone)
+* [Guo Tao](https://github.com/Guo-Stone)
