@@ -70,6 +70,7 @@ To quickly set up an environment, just simply run:
 ```bash
 # Clone this repository and set up environment
 git clone https://github.com/Immortals-33/Scaffold-Lab.git
+cd Scaffold-Lab
 conda env create -f scaffold-lab.yml
 source activate scaffold-lab
 # You may also need to install some dependencies manually in certain cases

@@ -40,14 +40,6 @@ def foldseek_cluster(
     if not os.listdir(input):
         return {"Clusters": 0, "Samples": 0, "Diversity": 0} if output_mode == 'DICT' else 0
     tmp_path = os.path.join(input, 'tmp')
-    if os.path.exists(tmp_path) or os.path.islink(tmp_path):
-        if os.path.islink(tmp_path):
-            target_path = os.readlink(tmp_path)
-        else:
-            target_path = tmp_path
-        shutil.rmtree(target_path)
-        assert not os.path.exists(tmp_path), tmp_path + "still exists"
-
     os.makedirs(tmp_path, exist_ok=True)
 
     output_prefix = os.path.join(input, 'diversity')
@@ -59,7 +51,7 @@ def foldseek_cluster(
             --alignment-type {alignment_type} \
             --tmscore-threshold {tmscore_threshold} \
             --alignment-mode 2 \
-            -v 1'
+            -v 0'
 
     if foldseek_path is not None:
         cmd.replace('foldseek', foldseek_path)
@@ -68,6 +60,15 @@ def foldseek_cluster(
     try:
         subprocess.run(cmd, shell=True, check=True)
     except subprocess.CalledProcessError as e:
+        for failed_tmp_file in os.listdir(tmp_path):
+            abs_path = os.path.join(tmp_path, failed_tmp_file)
+            if os.path.islink(abs_path):
+                target_path = os.readlink(abs_path)
+                os.unlink(abs_path)
+                pass
+            else:
+                shutil.rmtree(abs_path)
+
         shutil.copy(assist_protein_path, os.path.join(input, 'assist_protein.pdb'))
         log.info(f'Foldseek-clusters encountered an error. \
         Copied an assistant protein to resume clustering.')

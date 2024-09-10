@@ -19,6 +19,7 @@ import hydra
 import torch
 import subprocess
 import re
+import random
 import logging
 import pandas as pd
 import sys
@@ -30,6 +31,7 @@ from typing import Optional, Dict, Union, List
 from omegaconf import DictConfig, OmegaConf
 
 import esm
+import biotite.structure.io as strucio
 from biotite.sequence.io import fasta
 
 
@@ -276,7 +278,25 @@ class Refolder:
             Writes results in decoy_pdb_dir/sc_results.csv
         """
 
+        # Check whether given backbones are CA-only
+        file_to_be_checked = os.path.join(
+            decoy_pdb_dir,
+            random.choice([f for f in os.listdir(decoy_pdb_dir) if f.endswith('.pdb')]))
+        checked_structure = strucio.load_structure(file_to_be_checked)
+        # Assume all backbones with atom types <= 3 to be used with CA-only-ProteinMPNN
+        if len(set(checked_structure.atom_name)) <= 3:
+            self._log.warning(f'The input protein only has atom type(s): {set(checked_structure.atom_name)}\n\
+            Deprecating ProteinMPNN to CA-only version.')
+            self._CA_only = True
+        else:
+            self._log.info(f'The input protein has atom types: {set(checked_structure.atom_name)}\n\
+            Recommend using backbone version of ProteinMPNN.')
+            pass
+
+
         # Run ProteinMPNN
+
+        
 
         jsonl_path = os.path.join(decoy_pdb_dir, "parsed_pdbs.jsonl")
         process = subprocess.Popen([
@@ -703,15 +723,15 @@ class Evaluator:
             with open (diversity_result_path, 'r') as f:
                 cluster_info = f.readlines()
             cluster_info = [i.split('\t')[0] for i in cluster_info]
-            if 'assist_protein' in cluster_info:
-                cluster_info.remove('assist_protein')
+            if 'assist_protein.pdb' in cluster_info:
+                cluster_info.remove('assist_protein.pdb')
             unique_designable_backbones = set(cluster_info)
 
             unique_designable_backbones_dir = os.path.join(self._result_dir, 'unique_designable_backbones')
             if not os.path.exists(unique_designable_backbones_dir):
                 os.makedirs(unique_designable_backbones_dir, exist_ok=False)
             for pdb in unique_designable_backbones:
-                old_path = os.path.join(successful_backbone_dir, pdb+".pdb")
+                old_path = os.path.join(successful_backbone_dir, pdb)
                 shutil.copy(old_path, unique_designable_backbones_dir)
         else:
             self._log.info('Diversity results not found. Please check if Foldseek clustered\

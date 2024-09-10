@@ -492,8 +492,11 @@ def generate_indices_and_mask(contig: str) -> Tuple[int, List[int], np.ndarray]:
         else:
             # Scaffold part
             if '-' in part:
-                raise ValueError(f'There is "-" in scaffold {part}, which supposed to be determined already! Please check again.')
-            length = int(part)
+                assert part.split('-')[0] == part.split('-')[-1]
+                length = int(part.split('-')[0])
+                #raise ValueError(f'There is "-" in scaffold {part}, which supposed to be determined already! Please check again.')
+            else:
+                length = int(part)
             motif_mask.extend([False] * length)
 
         current_position += length  # Update the current position after processing each part
@@ -655,7 +658,7 @@ def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode
         'seq_backbone_hit': 'any',
         'seq_motif_hit': 'any'
     }).rename(columns={
-        'seq_hit': 'success',
+        'seq_hit': 'Success',
         'seq_backbone_hit': 'backbone_success',
         'seq_motif_hit': 'motif_success'
     })
@@ -665,11 +668,11 @@ def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode
 
     successful_backbones = set()
     if group_mode == 'all':
-        success_count = merged_data[merged_data['success'] == True]['backbone_path'].nunique()
-        successful_backbones = set(merged_data[merged_data['success'] == True]['backbone_path'])
+        success_count = merged_data[merged_data['Success'] == True]['backbone_path'].nunique()
+        successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
     elif group_mode == 'PDB id':
         success_count = dict.fromkeys(merged_data['PDB id'].unique(), 0)
-        success_per_pdb = merged_data[merged_data['success'] == True].groupby('PDB id')['backbone_path'].nunique()
+        success_per_pdb = merged_data[merged_data['Success'] == True].groupby('PDB id')['backbone_path'].nunique()
         success_count.update(success_per_pdb.to_dict())
 
         successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])

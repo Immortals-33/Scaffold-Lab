@@ -82,7 +82,7 @@ def pdbTM(
                 --alignment-type 1 \
                 --num-iterations 2 \
                 -e inf \
-                -v 1'
+                -v 0'
                 
         if foldseek_path is not None:
             cmd.replace('foldseek', {foldseek_path})
