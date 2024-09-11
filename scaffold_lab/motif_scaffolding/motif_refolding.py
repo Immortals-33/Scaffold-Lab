@@ -21,6 +21,7 @@ import subprocess
 import re
 import random
 import logging
+import warnings
 import pandas as pd
 import sys
 import rootutils
@@ -99,6 +100,8 @@ class Refolder:
         else:
             self.device = 'cpu'
         self._log.info(f'Using device: {self.device}')
+
+        warnings.filterwarnings("ignore", module="biotite.*|psutil.*", category=UserWarning)
 
         # Customizing different structure prediction methods
         self._forward_folding = self._infer_conf.predict_method
@@ -679,22 +682,25 @@ class Evaluator:
 
     def run_evaluation(self):
 
+        # Merge results of different backbones
         results_df, pdb_count = au.csv_merge(
             root_dir=self._result_dir,
             prefix=self.prefix
         )
 
-        merged_csv_path = os.path.join(self._result_dir, 'merged_results.csv')
-        results_df.to_csv(merged_csv_path, index=False)
+        summary_csv_path = os.path.join(self._result_dir, 'summary_results.csv')
+        complete_csv_path = os.path.join(self._result_dir, 'complete_results.csv')
+        results_df.to_csv(complete_csv_path, index=False)
 
         # Analyze outputs
-        updated_data, designability_count, backbones = au.analyze_success_rate(
-            merged_data=merged_csv_path,
+        complete_results, summary_results, designability_count, backbones = au.analyze_success_rate(
+            merged_data=complete_csv_path,
             group_mode='all'
         )
         self._log.info(f'Designable backbones for {self._result_dir}: {designability_count}.')
 
-        updated_data.to_csv(merged_csv_path, index=False)
+        complete_results.to_csv(complete_csv_path, index=False)
+        summary_results.to_csv(summary_csv_path, index=False)
 
         # Diversity Calculation
         successful_backbone_dir = os.path.join(self._result_dir, 'successful_backbones')
@@ -740,7 +746,7 @@ class Evaluator:
 
         # Novelty Calculation
         if len(os.listdir(successful_backbone_dir)) > 0:
-            success_results = updated_data[updated_data['Success'] == True]
+            success_results = complete_results[complete_results['Success'] == True]
             results_with_novelty = nu.calculate_novelty(
                 input_csv=success_results,
                 foldseek_database_path=self._eval_conf.foldseek_database,
@@ -759,6 +765,13 @@ class Evaluator:
             mean_novelty = 'null'
 
         # Summary outputs
+        au.write_summary_results(
+            stored_path=self._result_dir,
+            pdb_count=pdb_count,
+            designable_count=designability_count,
+            diversity_result=diversity,
+            mean_novelty_value=mean_novelty)
+        """
         designable_fraction = f'{(designability_count / (pdb_count + 1e-6) * 100):.2f}'
         diversity_value = diversity['Diversity']
         with open (os.path.join(self._result_dir, 'summary.txt'), 'w') as f:
@@ -768,6 +781,7 @@ class Evaluator:
             f.write(f'Designability Fraction: {designable_fraction}%\n')
             f.write(f'Diversity: {diversity_value}\n')
             f.write(f'Novelty: {mean_novelty}\n')
+        """
 
 
 @hydra.main(version_base=None, config_path="../../config", config_name="motif_scaffolding.yaml")

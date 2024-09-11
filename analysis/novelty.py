@@ -87,7 +87,7 @@ def pdbTM(
         if foldseek_path is not None:
             cmd.replace('foldseek', {foldseek_path})
             
-        subprocess.run(cmd, shell=True, check=True)
+        _ = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         
         result = pd.read_csv(output_file, sep='\t')
         top_pdbTM = round(result['alntmscore'].head(1).max(), 3)
@@ -106,9 +106,9 @@ def calculate_novelty(
     max_workers: int,
     cpu_threshold: float 
 ) -> pd.DataFrame:
-    df = pd.read_csv(input_csv) if isinstance(input_csv, str) or isinstance(input_csv, Path) else input_csv
+    df = pd.read_csv(input_csv).copy() if isinstance(input_csv, str) or isinstance(input_csv, Path) else input_csv.copy()
     if 'pdbTM' not in df.columns:
-        df['pdbTM'] = None
+        df.loc[:, 'pdbTM'] = None
         
     futures = {}
     with ProcessPoolExecutor(max_workers=max_workers) as executor:

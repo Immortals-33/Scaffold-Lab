@@ -632,10 +632,6 @@ def csv_merge(
 
                 merged_data = pd.concat([merged_data, df], ignore_index=True)
 
-    #merged_data.drop(columns=["header", "refold_motif_rmsd", "ptm", "pae",
-    #"plddt", "folding_method", "Success", "Backbone_Success", "Motif_Success",
-    #"backbone_motif_rmsd", "mpnn_score", "tm_score"], errors='ignore', inplace=True)
-
     log.info(f'Collected evaluation results from {file_count} protein backbones.')
 
     return merged_data, file_count
@@ -645,13 +641,13 @@ def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode
     # Define success criteria for each sample
     merged_data = pd.read_csv(merged_data) if isinstance(merged_data, str) or isinstance(merged_data, Path) else merged_data
 
-    merged_data['backbone_success'] = (merged_data['rmsd'] < 2)
-    merged_data['motif_success'] = (merged_data['motif_rmsd'] < 1)
-    merged_data['seq_hit'] = (merged_data['tm_score'] >= 0.5) & (merged_data['motif_rmsd'] < 1)
+    #merged_data['backbone_success'] = (merged_data['rmsd'] < 2)
+    #merged_data['motif_success'] = (merged_data['motif_rmsd'] < 1)
+    merged_data['seq_hit'] = (merged_data['rmsd'] < 2) & (merged_data['motif_rmsd'] < 1)
     merged_data['seq_backbone_hit'] = (merged_data['rmsd'] < 2)
     merged_data['seq_motif_hit'] = (merged_data['motif_rmsd'] < 1)
 
-    merged_data['all_success'] = merged_data['motif_success'] & merged_data['backbone_success']
+    #merged_data['all_success'] = merged_data['motif_success'] & merged_data['backbone_success']
     # Group by 'backbone_path' and aggregate the success criteria
     group_success = merged_data.groupby('backbone_path').agg({
         'seq_hit': 'any',
@@ -677,7 +673,14 @@ def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode
 
         successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
 
-    return merged_data, success_count, successful_backbones
+    #print(f'merged_data.columns: {set(merged_data.columns)}')
+
+    summary_data = merged_data.drop(columns=["header", "refold_motif_rmsd", "ptm", "pae",
+    "plddt", "folding_method", "backbone_success", "motif_success", "seq_backbone_hit", "seq_motif_hit",
+    "backbone_motif_rmsd", "mpnn_score", "tm_score"], inplace=False)
+    #print(f'summary_data.columns: {set(summary_data.columns)}\nmerged_data.columns: {set(merged_data.columns)}\n')
+
+    return merged_data, summary_data, success_count, successful_backbones
 
 
 def format_chain_positions(positions: List[str]) -> str:
@@ -754,3 +757,23 @@ def parse_input_scaffold(
         #native_motif,
         #design_motif
     )
+
+def write_summary_results(
+    stored_path: Union[str, Path],
+    pdb_count: Union[int, float],
+    designable_count: Union[int, float],
+    diversity_result: Union[Dict, int, float],
+    mean_novelty_value: Union[int, float, str],
+) -> None:
+
+    designable_fraction = f'{(designable_count / (pdb_count + 1e-6) * 100):.2f}'
+    diversity_value = f'{diversity_result["Diversity"]:.2f}'
+    novelty_value = f'{mean_novelty_value:.2f}' if isinstance(mean_novelty_value, (int or float)) else mean_novelty_value
+
+    with open (os.path.join(stored_path, 'summary.txt'), 'w') as f:
+        f.write('-------------------Summary-------------------\n')
+        f.write(f'The following are evaluation results for {os.path.abspath(stored_path)}:\n')
+        f.write(f'Evaluated Protein: {os.path.basename(os.path.normpath(stored_path))}\n')
+        f.write(f'Designability Fraction: {designable_fraction}%\n')
+        f.write(f'Diversity: {diversity_value}\n')
+        f.write(f'Novelty: {novelty_value}\n')
