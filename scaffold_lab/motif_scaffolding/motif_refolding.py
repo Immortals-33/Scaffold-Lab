@@ -251,10 +251,10 @@ class Refolder:
                         sample_contig=design_contig
                     )
                 self._log.info(f'Done sample: {pdb_path}')
-        
+
         output_json_path = os.path.join(self._output_dir, (os.path.basename(os.path.normpath(self._sample_dir))), 'motif_info.json')
         with open(output_json_path, 'w') as json_file:
-            json.dump(motif_info_dict, json_file, indent=4)
+            json.dump(motif_info_dict, json_file, indent=4, separators=(",", ": "), sort_keys=True)
         self._log.info(f'Motif information saved into {output_json_path}')
 
     def run_self_consistency(
