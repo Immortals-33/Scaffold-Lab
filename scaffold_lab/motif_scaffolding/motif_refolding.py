@@ -787,8 +787,8 @@ class Evaluator:
         native_backbones = self._conf.inference.native_pdbs_dir
         au.motif_scaffolding_pymol_write(
             unique_designable_backbones=os.path.join(self._result_dir, 'unique_designable_backbones.json'),
-            native_backbones=native_backbones
-            motif_json=os.path.join(self._result_dir, 'motif_inf.json'),
+            native_backbones=native_backbones,
+            motif_json=os.path.join(self._result_dir, 'motif_info.json'),
             save_path=os.path.join(self._result_dir, 'pymol_session.pse')
         )        
 
