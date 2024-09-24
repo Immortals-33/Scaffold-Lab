@@ -32,6 +32,7 @@ from typing import Optional, Dict, Union, List
 from omegaconf import DictConfig, OmegaConf
 
 import esm
+from transformers import AutoTokenizer, EsmForProteinFolding
 import biotite.structure.io as strucio
 from biotite.sequence.io import fasta
 
@@ -134,11 +135,25 @@ class Refolder:
             OmegaConf.save(config=self._conf, f=f)
         self._log.info(f'Saving self-consistency config to {config_path}')
 
-        # Load models and experiment
+        # Load models and experiment in huggingface style
         if 'cuda' in self.device:
-            self._folding_model = esm.pretrained.esmfold_v1().eval()
+
+            tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
+            model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
+            model = model.cuda()
+            # Uncomment to switch the stem to float16
+            model.esm = model.esm.half()
+            torch.backends.cuda.matmul.allow_tf32 = True
+            # Uncomment this line if your GPU memory is 16GB or less, or if you're folding longer (over 600 or so) sequences
+            model.trunk.set_chunk_size(64)
+            self._folding_model = model.eval()
         elif self.device == 'cpu': # ESMFold is not supported for half-precision model when running on CPU
-            self._folding_model = esm.pretrained.esmfold_v1().float().eval()
+
+            tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
+            model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
+            # Uncomment to switch the stem to float16
+            self._folding_model = model.float().eval()
+
         self._folding_model = self._folding_model.to(self.device)
 
 
@@ -790,7 +805,7 @@ class Evaluator:
             native_backbones=native_backbones
             motif_json=os.path.join(self._result_dir, 'motif_inf.json'),
             save_path=os.path.join(self._result_dir, 'pymol_session.pse')
-        )        
+        )
 
 
 @hydra.main(version_base=None, config_path="../../config", config_name="motif_scaffolding.yaml")
