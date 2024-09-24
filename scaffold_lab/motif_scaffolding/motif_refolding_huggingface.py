@@ -50,6 +50,7 @@ from analysis import utils as au
 from data import structure_utils as su
 from analysis import diversity as du
 from analysis import novelty as nu
+from analysis import plot as pu
 
 
 class Refolder:
@@ -797,15 +798,20 @@ class Evaluator:
             f.write(f'Diversity: {diversity_value}\n')
             f.write(f'Novelty: {mean_novelty}\n')
         """
+        # Visualization
+        pu.plot_metrics_distribution(
+            input=os.path.join(self._result_dir, 'complete_results.csv'),
+            save_path=self._result_dir
+        )
 
         # Pymol session files
         native_backbones = self._conf.inference.native_pdbs_dir
-        au.motif_scaffolding_pymol_write(
-            unique_designable_backbones=os.path.join(self._result_dir, 'unique_designable_backbones.json'),
+        pu.motif_scaffolding_pymol_write(
+            unique_designable_backbones=os.path.join(self._result_dir, 'unique_designable_backbones'),
             native_backbones=native_backbones,
             motif_json=os.path.join(self._result_dir, 'motif_info.json'),
             save_path=os.path.join(self._result_dir, 'pymol_session.pse')
-        )
+        )   
 
 
 @hydra.main(version_base=None, config_path="../../config", config_name="motif_scaffolding.yaml")
