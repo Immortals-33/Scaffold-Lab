@@ -18,9 +18,9 @@ def motif_scaffolding_pymol_write(
     native_backbones: Union[str, Path],
     motif_json: Union[str, Path],
     save_path: Union[str, Path],
-    native_motif_color: Optional[str] = "orange",
-    design_motif_color: Optional[str] = "purple",
-    design_scaffold_color: Optional[str] = "marine"
+    native_motif_color: Optional[str] = "tellurium",
+    design_motif_color: Optional[str] = "smudge",
+    design_scaffold_color: Optional[str] = "rhenium"
     ):
     """
     Extract unique designable backbones, visualize the motifs and
@@ -78,6 +78,8 @@ def motif_scaffolding_pymol_write(
             cmd.show("sticks",f"{name}_motif")
             # align the motif
             cmd.align(f"{name}","native_motif")
+
+    cmd.bg_color('white')
     # set grid_mode to 1
     cmd.set("grid_mode",1)
     # zoom on the {name}
