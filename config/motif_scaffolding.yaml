@@ -40,4 +40,5 @@ inference:
 evaluation:
   assist_protein: ./tools/assistant_protein/assist_protein.pdb
   foldseek_path: None
-  foldseek_database: path_to_your_Foldseek_PDB_database
+  foldseek_database: ???
+  foldseek_cores_for_pdbTM: None

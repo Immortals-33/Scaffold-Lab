@@ -86,7 +86,7 @@ def pdbTM(
                 
         if foldseek_path is not None:
             cmd.replace('foldseek', {foldseek_path})
-            
+
         _ = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         
         result = pd.read_csv(output_file, sep='\t')
@@ -111,23 +111,29 @@ def calculate_novelty(
         df.loc[:, 'pdbTM'] = None
         
     futures = {}
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        process_id = 0
-        for backbone_path in df['backbone_path'].unique():
-            if pd.isna(df[df['backbone_path'] == backbone_path]['pdbTM'].iloc[0]):
-                while psutil.cpu_percent(interval=1) > cpu_threshold:
-                    time.sleep(0.5)
-                future = executor.submit(pdbTM, backbone_path, foldseek_database_path, process_id)
-                futures[future] = backbone_path
-                process_id += 1
-                
-        for future in as_completed(futures):
-            pdbTM_value = future.result()
-            backbone_path = futures[future]
+    if max_workers > 0:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            process_id = 0
+            for backbone_path in df['backbone_path'].unique():
+                if pd.isna(df[df['backbone_path'] == backbone_path]['pdbTM'].iloc[0]):
+                    while psutil.cpu_percent(interval=1) > cpu_threshold:
+                        time.sleep(0.5)
+                    future = executor.submit(pdbTM, backbone_path, foldseek_database_path, process_id)
+                    futures[future] = backbone_path
+                    process_id += 1
+                    
+            for future in as_completed(futures):
+                pdbTM_value = future.result()
+                backbone_path = futures[future]
+                df.loc[df['backbone_path'] == backbone_path, 'pdbTM'] = pdbTM_value
+            
+            #df['pdbTM'] = df['backbone_path'].apply(lambda x: pdbTM_values[x])
+    else:
+        for process_id_placeholder, backbone_path in enumerate(df['backbone_path'].unique()):
+            pdbTM_value = pdbTM(backbone_path, foldseek_database_path,
+                    process_id_placeholder)
             df.loc[df['backbone_path'] == backbone_path, 'pdbTM'] = pdbTM_value
-        
-        #df['pdbTM'] = df['backbone_path'].apply(lambda x: pdbTM_values[x])
-    
+            
     return df
 
 def create_parser():

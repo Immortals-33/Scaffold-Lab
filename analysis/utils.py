@@ -28,6 +28,52 @@ from Bio.PDB.parse_pdb_header import parse_pdb_header
 
 log = logging.getLogger(__name__)
 
+def reference_motif_extract(
+    structure_path: Union[str, struc.AtomArray],
+    atom_part: Optional[str] = "all-atom",
+) -> struc.AtomArray:
+    """Extracting motif from input protein structure.
+
+    Args:
+        structure_path (Union[str, None]): Input protein structure, can either be a path or an AtomArray.
+        atom_part (str, optional): _description_. Defaults to "all".
+
+    Returns:
+        motif (biotite.structure.AtomArray): The motif positions extracted by user-specified way (all-atom / CA / backbone)
+    """
+    if isinstance(structure_path, str):
+        array = strucio.load_structure(structure_path, model=1)
+    else:
+        array = structure_path
+   
+    # Get unique chain IDs
+    chains = array.chain_id
+    unique_chains = sorted(set(chains))
+    
+    result = []
+    
+    for chain in unique_chains:
+        # Get all residues in the current chain
+        residues_in_chain = array[array.chain_id == chain]
+        residue_ids = residues_in_chain.res_id
+        
+        # Get the minimum and maximum residue IDs for this chain
+        if len(residue_ids) > 0:
+            min_res_id = min(residue_ids)
+            max_res_id = max(residue_ids)
+            
+            if min_res_id == max_res_id:
+                # If there's only one residue, just display the single residue
+                result.append(f"{chain}{min_res_id}")
+            else:
+                # If there's a range, display it in the form chainX-Y
+                result.append(f"{chain}{min_res_id}-{max_res_id}")
+    
+    # Join the results with slashes as required
+    position = "/".join(result)
+
+    return motif_extract(position, structure_path, atom_part)
+
 def motif_extract(
     position: str,
     structure_path: Union[str, struc.AtomArray],
@@ -60,8 +106,6 @@ def motif_extract(
             start = end = int(i)
         else:
             start, end = i.split("-")
-            #print(start, end)
-            log.info(f'Motif position from {start} to {end}')
             start, end = int(start), int(end)
 
         if atom_part == "all-atom":
@@ -592,7 +636,9 @@ def csv_merge(
     Merge evaluation results from different backbones into a single Dataframe file.
 
     Args:
-        root_dir (Union[str, Path]): Root directory to search evaluation results.
+        root_dir (Union[str, Path]): Root directory to search evaluation
+            results.  Should be the ".../evals/" dir with paths
+            format e.g. ".../evals/00_1BCF_1/self_consistency/esm_eval_results.csv"
         prefix (str): Prefix to merge files. Default = 'esm', alternative = 'af2' or 'joint'.
 
     Returns:
@@ -606,7 +652,7 @@ def csv_merge(
     merged_data = pd.DataFrame()
     log.info(f'Merging evaluation results from {root_dir}......')
     file_count = 0
-    for root, dirs, files in os.walk(root_dir):
+    for root, dirs, files in os.walk(root_dir, followlinks=True):
         for file in files:
             if file == f'{prefix}_eval_results.csv':
                 file_count += 1
