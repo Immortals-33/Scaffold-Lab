@@ -32,6 +32,7 @@ from typing import Optional, Dict, Union, List
 from omegaconf import DictConfig, OmegaConf
 
 import esm
+from transformers import AutoTokenizer, EsmForProteinFolding
 import biotite.structure.io as strucio
 from biotite.sequence.io import fasta
 
@@ -120,7 +121,6 @@ class Refolder:
         os.makedirs(self._output_dir, exist_ok=True)
         self._pmpnn_dir = self._infer_conf.pmpnn_dir
         self._sample_dir = self._infer_conf.backbone_pdb_dir
-        print("self._sample_dir", self._sample_dir)
         self._CA_only = self._infer_conf.CA_only
         self._hide_GPU_from_pmpnn = self._infer_conf.hide_GPU_from_pmpnn
 
@@ -136,11 +136,25 @@ class Refolder:
             OmegaConf.save(config=self._conf, f=f)
         self._log.info(f'Saving self-consistency config to {config_path}')
 
-        # Load models and experiment
+        # Load models and experiment in huggingface style
         if 'cuda' in self.device:
-            self._folding_model = esm.pretrained.esmfold_v1().eval()
+
+            tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
+            model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
+            model = model.cuda()
+            # Uncomment to switch the stem to float16
+            model.esm = model.esm.half()
+            torch.backends.cuda.matmul.allow_tf32 = True
+            # Uncomment this line if your GPU memory is 16GB or less, or if you're folding longer (over 600 or so) sequences
+            model.trunk.set_chunk_size(64)
+            self._folding_model = model.eval()
         elif self.device == 'cpu': # ESMFold is not supported for half-precision model when running on CPU
-            self._folding_model = esm.pretrained.esmfold_v1().float().eval()
+
+            tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
+            model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
+            # Uncomment to switch the stem to float16
+            self._folding_model = model.float().eval()
+
         self._folding_model = self._folding_model.to(self.device)
 
 
@@ -196,14 +210,14 @@ class Refolder:
                     start, end = map(int, chain_B[1:].split("-"))
                     chain_B_indices = list(range(start, end + 1))
 
-                if False and '_' in backbone_name: # Handle length-variable design for different PDB cases
+                if '_' in backbone_name: # Handle length-variable design for different PDB cases
                     reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name.split("_")[0]}.pdb')
                 else:
                     reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
                 design_pdb = os.path.join(self._sample_dir, pdb_file)
 
                 # Extract motif and calculate motif-RMSD
-                reference_motif_CA = au.reference_motif_extract(
+                reference_motif_CA = au.motif_extract(reference_contig,
                         reference_pdb, atom_part="CA")
                 design_motif = au.motif_extract(design_contig, design_pdb,
                         atom_part="CA")
@@ -211,10 +225,11 @@ class Refolder:
 
                 # Extract motif with all backbone atoms for subsequent
                 # motif_rmsd computation on predicted folded structure.
-                reference_motif = au.reference_motif_extract(reference_pdb, atom_part="backbone")
+                reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
 
                 # Save outputs
-                backbone_dir = os.path.join(self._output_dir, f'{backbone_name}_{sample_num}')
+                basename_dir = os.path.basename(os.path.normpath(self._sample_dir))
+                backbone_dir = os.path.join(self._output_dir, basename_dir, f'{backbone_name}_{sample_num}')
                 if os.path.exists(backbone_dir):
                     self._log.info(f'Backbone {backbone_name} already existed, pass then.')
                     continue
@@ -252,7 +267,8 @@ class Refolder:
                         sample_contig=design_contig
                     )
                 self._log.info(f'Done sample: {pdb_path}')
-        output_json_path = os.path.join(self._output_dir, 'motif_info.json')
+
+        output_json_path = os.path.join(self._output_dir, (os.path.basename(os.path.normpath(self._sample_dir))), 'motif_info.json')
         with open(output_json_path, 'w') as json_file:
             json.dump(motif_info_dict, json_file, indent=4, separators=(",", ": "), sort_keys=True)
         self._log.info(f'Motif information saved into {output_json_path}')
@@ -293,7 +309,7 @@ class Refolder:
             self._CA_only = True
         else:
             self._log.info(f'The input protein has atom types: {set(checked_structure.atom_name)}\n\
-            Recommend using full-backbone version of ProteinMPNN.')
+            Recommend using backbone version of ProteinMPNN.')
             pass
 
 
@@ -328,7 +344,6 @@ class Refolder:
             '--batch_size',
             str(self._sample_conf.mpnn_batch_size),
         ]
-        print(" ".join(pmpnn_args))
         if self._infer_conf.gpu_id is not None:
             pmpnn_args.append('--device')
             pmpnn_args.append(str(self._infer_conf.gpu_id))
@@ -657,7 +672,10 @@ class Evaluator:
         self._conf = conf
         self._infer_conf = conf.inference
         self._eval_conf = conf.evaluation
-        self._result_dir = self._infer_conf.output_dir
+        self._result_dir = os.path.join(
+            self._infer_conf.output_dir,
+            os.path.basename(os.path.normpath(self._infer_conf.backbone_pdb_dir))
+            )
 
         self._foldseek_path = self._eval_conf.foldseek_path
         self._foldseek_database = self._eval_conf.foldseek_database
@@ -668,10 +686,7 @@ class Evaluator:
         self._rng = np.random.default_rng(self._infer_conf.seed)
 
         # Hardware resources
-        if self._eval_conf.foldseek_cores_for_pdbTM != "None":
-            self._num_cpu_cores = self._eval_conf.foldseek_cores_for_pdbTM
-        else:
-            self._num_cpu_cores = os.cpu_count()
+        self._num_cpu_cores = os.cpu_count()
 
         # Merge results into one csv file
         if 'ESMFold' in self.folding_method and 'AlphaFold2' in self.folding_method:
@@ -684,7 +699,6 @@ class Evaluator:
     def run_evaluation(self):
 
         # Merge results of different backbones
-        print("result dir, prefix:", self._result_dir, self.prefix)
         results_df, pdb_count = au.csv_merge(
             root_dir=self._result_dir,
             prefix=self.prefix
@@ -797,18 +811,11 @@ class Evaluator:
             native_backbones=native_backbones,
             motif_json=os.path.join(self._result_dir, 'motif_info.json'),
             save_path=os.path.join(self._result_dir, 'pymol_session.pse')
-        )        
+        )   
 
 
 @hydra.main(version_base=None, config_path="../../config", config_name="motif_scaffolding.yaml")
 def run(conf: DictConfig) -> None:
-
-
-    # Check that path to foldseek database has been specified
-    if not conf.evaluation.get("foldseek_database"):
-        raise ValueError("The 'foldseek_database' must be specified in the configuration.")
-    else:
-        print("foldseek db is specified")
 
     # Perform fixed backbone design and forward folding
     print('Starting refolding for motif-scaffolding task......')
