@@ -120,7 +120,6 @@ class Refolder:
         os.makedirs(self._output_dir, exist_ok=True)
         self._pmpnn_dir = self._infer_conf.pmpnn_dir
         self._sample_dir = self._infer_conf.backbone_pdb_dir
-        print("self._sample_dir", self._sample_dir)
         self._CA_only = self._infer_conf.CA_only
         self._hide_GPU_from_pmpnn = self._infer_conf.hide_GPU_from_pmpnn
 
@@ -807,8 +806,6 @@ def run(conf: DictConfig) -> None:
     # Check that path to foldseek database has been specified
     if not conf.evaluation.get("foldseek_database"):
         raise ValueError("The 'foldseek_database' must be specified in the configuration.")
-    else:
-        print("foldseek db is specified")
 
     # Perform fixed backbone design and forward folding
     print('Starting refolding for motif-scaffolding task......')
