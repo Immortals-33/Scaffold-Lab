@@ -245,7 +245,7 @@ def calc_tm_score(pos_1, pos_2, seq_1, seq_2):
 
 def calc_aligned_rmsd(pos_1, pos_2):
     aligned_pos_1 = rigid_transform_3D(pos_1, pos_2)[0]
-    return np.mean(np.linalg.norm(aligned_pos_1 - pos_2, axis=-1))
+    return np.sqrt(np.mean(np.linalg.norm(aligned_pos_1 - pos_2, axis=-1) ** 2))
 
 def rigid_transform_3D(A, B, verbose=False):
     # Transforms A to look like B
