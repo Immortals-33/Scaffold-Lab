@@ -10,7 +10,7 @@ inference:
   # Directory of software, weights, and outputs.
   backbone_pdb_dir: ./demo/motif_scaffolding/2KL8/
   pmpnn_dir: ./tools/ProteinMPNN/
-  output_dir: ./outputs/
+  output_dir: ./outputs/2KL8/
   motif_csv_path: ./demo/motif_scaffolding/motif_info.csv
   native_pdbs_dir: ./demo/motif_scaffolding/reference_pdbs/
   

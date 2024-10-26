@@ -195,14 +195,16 @@ class Refolder:
                     start, end = map(int, chain_B[1:].split("-"))
                     chain_B_indices = list(range(start, end + 1))
 
-                if False and '_' in backbone_name: # Handle length-variable design for different PDB cases
+                if '_' in backbone_name: # Handle length-variable design for different PDB cases
                     reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name.split("_")[0]}.pdb')
                 else:
                     reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
                 design_pdb = os.path.join(self._sample_dir, pdb_file)
 
                 # Extract motif and calculate motif-RMSD
-                reference_motif_CA = au.reference_motif_extract(
+                # !!Note: This `rms` is the motif-RMSD between native motif and initially-generated backbone,
+                # i.e. without refolding procedure.
+                reference_motif_CA = au.motif_extract(reference_contig,
                         reference_pdb, atom_part="CA")
                 design_motif = au.motif_extract(design_contig, design_pdb,
                         atom_part="CA")
@@ -210,7 +212,7 @@ class Refolder:
 
                 # Extract motif with all backbone atoms for subsequent
                 # motif_rmsd computation on predicted folded structure.
-                reference_motif = au.reference_motif_extract(reference_pdb, atom_part="backbone")
+                reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
 
                 # Save outputs
                 backbone_dir = os.path.join(self._output_dir, f'{backbone_name}_{sample_num}')
@@ -223,7 +225,7 @@ class Refolder:
                 shutil.copy2(os.path.join(self._sample_dir, pdb_file), backbone_dir)
                 print(f'copied {pdb_file} to {backbone_dir}')
 
-                #seperate_pdb_folder = os.path.join(backbone_dir, backbone_name)
+                #separate_pdb_folder = os.path.join(backbone_dir, backbone_name)
                 pdb_path = os.path.join(backbone_dir, pdb_file)
                 sc_output_dir = os.path.join(backbone_dir, 'self_consistency')
                 os.makedirs(sc_output_dir, exist_ok=True)
