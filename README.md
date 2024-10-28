@@ -65,21 +65,18 @@ We present the benchmark for both unconditional generation and conditional gener
 
 ## Installation
 
-To quickly set up an environment, just simply run:
+We recommend using [Conda](https://anaconda.org/anaconda/conda) to set up dependencies. To quickly set up an environment, just simply run:
 
 ```bash
-# Clone this repository and set up environment
+# Clone this repository and set up virtual environment
 git clone https://github.com/Immortals-33/Scaffold-Lab.git
 cd Scaffold-Lab
+# Create and activate environment
 conda env create -f scaffold-lab.yml
 source activate scaffold-lab
-# You may also need to install some dependencies manually in certain cases
-pip install hydra-core --upgrade
-pip install hydra-joblib-launcher --upgrade
-pip install ml-collections GPUtil hjson h5py
 ```
 
-You may also need to build a Foldseek database for diversity and novelty calculation.
+You may also need to build a Foldseek database for diversity and novelty evaluation.
 
 Within the conda environment, run:
 
