@@ -872,12 +872,12 @@ def write_summary_results(
     pdb_count: Union[int, float],
     designable_count: Union[int, float],
     diversity_result: Union[Dict, int, float],
-    mean_novelty_value: Union[int, float, str],
+    novelty_value: Union[int, float, str],
 ) -> None:
 
     designable_fraction = f'{(designable_count / (pdb_count + 1e-6) * 100):.2f}'
     diversity_value = f'{diversity_result["Diversity"]:.2f}'
-    novelty_value = f'{mean_novelty_value:.2f}' if isinstance(mean_novelty_value, (int or float)) else mean_novelty_value
+    novelty_value = f'{novelty_value:.2f}' if isinstance(novelty_value, (int or float)) else novelty_value
 
     with open (os.path.join(stored_path, 'summary.txt'), 'w') as f:
         f.write('-------------------Summary-------------------\n')
@@ -885,4 +885,4 @@ def write_summary_results(
         f.write(f'Evaluated Protein: {os.path.basename(os.path.normpath(stored_path))}\n')
         f.write(f'Designability Fraction: {designable_fraction}%\n')
         f.write(f'Diversity: {diversity_value}\n')
-        f.write(f'Novelty: {novelty_value}\n')
+        f.write(f'Novelty Score: {novelty_value}\n')

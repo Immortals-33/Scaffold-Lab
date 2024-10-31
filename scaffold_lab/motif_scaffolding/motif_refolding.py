@@ -149,11 +149,30 @@ class Refolder:
         motif_info_dict = {}
 
         for pdb_file in os.listdir(self._sample_dir):
+
+            naming_number = 1
+
             if ".pdb" in pdb_file:
-                backbone_name = os.path.splitext(pdb_file)[0]
-                sample_num = backbone_name.split("_")[-1]
-                parts = backbone_name.split('_')
-                backbone_name = parts[0] if len(parts) == 2 else '_'.join(parts[:-1])
+
+                # Backbone name handling
+                all_name = os.path.splitext(pdb_file)[0]
+                design_pdb = os.path.join(self._sample_dir, pdb_file)
+                try:
+                    case_num, backbone_name, sample_num = all_name.split("_") # "00_1BCF_1.pdb"
+                #parts = backbone_name.split('_')
+                #backbone_name = parts[0] if len(parts) == 2 else '_'.join(parts[:-1])
+                    self._log.info(f"case_num: {case_num}, tested case: {backbone_name}, sample_num: {sample_num}")
+                    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
+                except ValueError as e:
+                    self._log.warning(f"The naming format {all_name} is not as default. \
+                    Try to use another format.")
+                    backbone_name, sample_num = all_name.split("_")
+                    self._log.info(f"tested case :{backbone_name}, sample_num: {sample_num}")
+                    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
+                else:
+                    self._log.warning(f"The naming format {all_name} is not as default. \
+                    Try to rename to format.")
+
 
                 # Read motif information data and save into json file
                 if os.path.exists(self._motif_csv):
@@ -195,11 +214,14 @@ class Refolder:
                     start, end = map(int, chain_B[1:].split("-"))
                     chain_B_indices = list(range(start, end + 1))
 
-                if '_' in backbone_name: # Handle length-variable design for different PDB cases
-                    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name.split("_")[0]}.pdb')
-                else:
-                    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
-                design_pdb = os.path.join(self._sample_dir, pdb_file)
+                # Backbone Name Reading
+                #try:
+                #    case_num, reference_name,  = backbone_name.split(".pdb").split("_")
+                #if '_' in backbone_name: # Handle length-variable design for different PDB cases
+                #    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name.split("_")[0]}.pdb')
+                #else:
+                #    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
+                #design_pdb = os.path.join(self._sample_dir, pdb_file)
 
                 # Extract motif and calculate motif-RMSD
                 # !!Note: This `rms` is the motif-RMSD between native motif and initially-generated backbone,
@@ -705,7 +727,7 @@ class Evaluator:
         complete_results.to_csv(complete_csv_path, index=False)
         summary_results.to_csv(summary_csv_path, index=False)
 
-        # Diversity Calculation
+        # Diversity Evaluation
         successful_backbone_dir = os.path.join(self._result_dir, 'successful_backbones')
         if not os.path.exists(successful_backbone_dir):
             os.makedirs(successful_backbone_dir, exist_ok=False)
@@ -747,7 +769,7 @@ class Evaluator:
                 properly or there is no designable backbone presented.')
 
 
-        # Novelty Calculation
+        # Novelty Evaluation
         if len(os.listdir(successful_backbone_dir)) > 0:
             success_results = complete_results[complete_results['Success'] == True]
             results_with_novelty = nu.calculate_novelty(
@@ -756,16 +778,16 @@ class Evaluator:
                 max_workers=self._num_cpu_cores,
                 cpu_threshold=75.0
             )
-            mean_novelty = results_with_novelty['pdbTM'].mean()
+            novelty_score = 1 - results_with_novelty['pdbTM'].median()
             max_novelty = results_with_novelty['pdbTM'].min()
             self._log.info(f'Novelty Calculation finished.\n\
-                Average novelty (pdbTM) among successful backbones: {mean_novelty:.3f}\n\
-                The most novel backbone has a pdbTM of {max_novelty:.3f}')
+                Novelty score (1 - pdbTM) among successful backbones: {novelty_score:.3f}\n\
+                The most novel designable backbone has a pdbTM of {max_novelty:.3f}')
             novelty_csv_path = os.path.join(self._result_dir, 'successful_novelty_results.csv')
             results_with_novelty.to_csv(novelty_csv_path, index=False)
         else:
             self._log.info('No successful backbone was found. Pass novelty calculation.')
-            mean_novelty = 'null'
+            novelty_score = 'null'
 
         # Summary outputs
         au.write_summary_results(
@@ -773,7 +795,7 @@ class Evaluator:
             pdb_count=pdb_count,
             designable_count=designability_count,
             diversity_result=diversity,
-            mean_novelty_value=mean_novelty)
+            novelty_value=novelty_score)
         """
         designable_fraction = f'{(designability_count / (pdb_count + 1e-6) * 100):.2f}'
         diversity_value = diversity['Diversity']
@@ -786,14 +808,15 @@ class Evaluator:
             f.write(f'Novelty: {mean_novelty}\n')
         """
         # Visualization
-        pu.plot_metrics_distribution(
+        if os.path.exists(diversity_result_path):
+            pu.plot_metrics_distribution(
             input=os.path.join(self._result_dir, 'complete_results.csv'),
             save_path=self._result_dir
         )
 
         # Pymol session files
-        native_backbones = self._conf.inference.native_pdbs_dir
-        pu.motif_scaffolding_pymol_write(
+            native_backbones = self._conf.inference.native_pdbs_dir
+            pu.motif_scaffolding_pymol_write(
             unique_designable_backbones=os.path.join(self._result_dir, 'unique_designable_backbones'),
             native_backbones=native_backbones,
             motif_json=os.path.join(self._result_dir, 'motif_info.json'),
