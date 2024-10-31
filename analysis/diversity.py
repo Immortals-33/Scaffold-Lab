@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 def foldseek_cluster(
     input: Union[str, Path],
     assist_protein_path: Union[str, Path],
-    tmscore_threshold: float = 0.5,
+    tmscore_threshold: float = 0.6,
     alignment_type: int = 1,
     output_mode: str = 'FLOAT',
     save_tmp: bool=False,

@@ -127,6 +127,7 @@ class Refolder:
         if self._infer_conf.motif_csv_path is not None:
             self._motif_csv = self._infer_conf.motif_csv_path
         self._native_pdbs_dir = self._infer_conf.native_pdbs_dir
+        self._whole_benchmark_set = None
 
         # Save config
         config_folder = os.path.basename(Path(self._output_dir))
@@ -158,21 +159,48 @@ class Refolder:
                 all_name = os.path.splitext(pdb_file)[0]
                 design_pdb = os.path.join(self._sample_dir, pdb_file)
                 try:
-                    case_num, backbone_name, sample_num = all_name.split("_") # "00_1BCF_1.pdb"
+                    case_num, backbone_name, sample_num = all_name.split("_") # "01_1BCF_1.pdb"
                 #parts = backbone_name.split('_')
                 #backbone_name = parts[0] if len(parts) == 2 else '_'.join(parts[:-1])
                     self._log.info(f"case_num: {case_num}, tested case: {backbone_name}, sample_num: {sample_num}")
                     reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
-                except ValueError as e:
+                except ValueError:
                     self._log.warning(f"The naming format {all_name} is not as default. \
                     Try to use another format.")
-                    backbone_name, sample_num = all_name.split("_")
+                    backbone_name, sample_num = all_name.split("_") # "1BCF_1.pdb"
                     self._log.info(f"tested case :{backbone_name}, sample_num: {sample_num}")
                     reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
                 else:
                     self._log.warning(f"The naming format {all_name} is not as default. \
-                    Try to rename to format.")
+                    Try to rename the PDB file to format.")
+                    for native_pdb in self._whole_benchmark_set:
+                        if native_pdb in all_name.upper():
+                            backbone_name = native_pdb
+                            reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
+                            rename_design_pdb = os.path.join(self._sample_dir, f"{backbone_name}_{naming_number}.pdb")
+                            shutil.copy2(design_pdb, rename_design_pdb)
+                            naming_number += 1
+                        else:
+                            raise ValueError(f"No benchmark case detected in {all_name}. Try to reformat.")
 
+
+                # The following part is a test version and needed to be cleaned up.
+                if self._whole_benchmark_set is not None:
+                    try:
+                        benchmark_set_info = pd.read_csv(self._whole_benchmark_set)
+                        reference_contig = benchmark_set_info.iloc[
+                            benchmark_set_info.iloc[:, 0] == backbone_name, 1
+                        ].values[0]
+
+                        #motif_pdb = os.path.join(, f"{backbone_name}.pdb")
+                        reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
+                    except FileNotFoundError:
+                        raise FileNotFoundError(f"Benchmark Information not found in {benchmark_set_info}.")
+                    except IndexError:
+                        raise ValueError(f"No contig value found for the name {backbone_name} in benchmark information.")
+                    except Exception as e:
+                        raise RuntimeError(f"An error occured while processing {pdb_file}.")
+                    
 
                 # Read motif information data and save into json file
                 if os.path.exists(self._motif_csv):
@@ -192,6 +220,7 @@ class Refolder:
                     "redesign_info": redesign_info
                 }
 
+
                 # Deal with contig
                 if 'IL17RA' in pdb_file:
                     reference_contig = "E63-70/E101-110"
@@ -200,10 +229,12 @@ class Refolder:
                 design_contig = au.motif_indices_to_contig(motif_indices)
                 print(f'design_contig: {design_contig}')
 
+
                 # Handle redesigned positions
                 if redesign_info is not None:
                     self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
                     motif_indices = au.introduce_redesign_positions(motif_indices, redesign_info)
+
 
                 # Handle complex case for PDB 6VW1
                 if backbone_name == '6VW1':
@@ -239,7 +270,7 @@ class Refolder:
                 # Save outputs
                 backbone_dir = os.path.join(self._output_dir, f'{backbone_name}_{sample_num}')
                 if os.path.exists(backbone_dir):
-                    self._log.info(f'Backbone {backbone_name} already existed, pass then.')
+                    self._log.warning(f'Backbone {backbone_name} already existed, pass then.')
                     continue
 
                 os.makedirs(backbone_dir, exist_ok=True)
@@ -279,6 +310,7 @@ class Refolder:
         with open(output_json_path, 'w') as json_file:
             json.dump(motif_info_dict, json_file, indent=4, separators=(",", ": "), sort_keys=True)
         self._log.info(f'Motif information saved into {output_json_path}')
+
 
     def run_self_consistency(
             self,
@@ -322,8 +354,6 @@ class Refolder:
 
         # Run ProteinMPNN
 
-        
-
         jsonl_path = os.path.join(decoy_pdb_dir, "parsed_pdbs.jsonl")
         process = subprocess.Popen([
             'python',
@@ -351,7 +381,7 @@ class Refolder:
             '--batch_size',
             str(self._sample_conf.mpnn_batch_size),
         ]
-        print(" ".join(pmpnn_args))
+        self._log.info(f'Running ProteinMPNN with command {" ".join(pmpnn_args)}')
         if self._infer_conf.gpu_id is not None:
             pmpnn_args.append('--device')
             pmpnn_args.append(str(self._infer_conf.gpu_id))
