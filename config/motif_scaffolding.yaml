@@ -13,6 +13,7 @@ inference:
   output_dir: ./outputs/2KL8/
   motif_csv_path: ./demo/motif_scaffolding/motif_info.csv
   native_pdbs_dir: ./demo/motif_scaffolding/reference_pdbs/
+  benchmark_set: None
   
   # Setting of ProteinMPNN
   CA_only: True

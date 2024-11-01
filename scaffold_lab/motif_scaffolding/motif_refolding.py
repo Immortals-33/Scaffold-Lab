@@ -127,7 +127,7 @@ class Refolder:
         if self._infer_conf.motif_csv_path is not None:
             self._motif_csv = self._infer_conf.motif_csv_path
         self._native_pdbs_dir = self._infer_conf.native_pdbs_dir
-        self._whole_benchmark_set = None
+        self._whole_benchmark_set = self._infer_conf.benchmark_set
 
         # Save config
         config_folder = os.path.basename(Path(self._output_dir))
@@ -167,21 +167,26 @@ class Refolder:
                 except ValueError:
                     self._log.warning(f"The naming format {all_name} is not as default. \
                     Try to use another format.")
-                    backbone_name, sample_num = all_name.split("_") # "1BCF_1.pdb"
-                    self._log.info(f"tested case :{backbone_name}, sample_num: {sample_num}")
-                    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
-                else:
-                    self._log.warning(f"The naming format {all_name} is not as default. \
-                    Try to rename the PDB file to format.")
-                    for native_pdb in self._whole_benchmark_set:
-                        if native_pdb in all_name.upper():
-                            backbone_name = native_pdb
-                            reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
-                            rename_design_pdb = os.path.join(self._sample_dir, f"{backbone_name}_{naming_number}.pdb")
-                            shutil.copy2(design_pdb, rename_design_pdb)
-                            naming_number += 1
-                        else:
-                            raise ValueError(f"No benchmark case detected in {all_name}. Try to reformat.")
+                    try:
+                        assert len(all_name.split("_")) == 2, f"{all_name} not following default!"
+                        backbone_name, sample_num = all_name.split("_") # "1BCF_1.pdb"
+                        self._log.info(f"tested case :{backbone_name}, sample_num: {sample_num}")
+                        reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
+                    except (ValueError, AssertionError):
+                        self._log.warning(f"The naming format {all_name} is not as default. \
+                        Try to rename the PDB file to format.")
+                        for native_pdb in self._whole_benchmark_set:
+                            print(f"native_pdb: {native_pdb}")
+                            if native_pdb in all_name.upper():
+                                print(f"all name upper: {all_name.upper()}")
+                                backbone_name = native_pdb
+                                break
+                            else:
+                                raise ValueError(f"No benchmark case detected in {all_name}. Try to reformat.")
+                        reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
+                        rename_design_pdb = os.path.join(self._sample_dir, f"{backbone_name}_{naming_number}.pdb")
+                        shutil.copy2(design_pdb, rename_design_pdb)
+                        naming_number += 1
 
 
                 # The following part is a test version and needed to be cleaned up.
@@ -199,7 +204,8 @@ class Refolder:
                     except IndexError:
                         raise ValueError(f"No contig value found for the name {backbone_name} in benchmark information.")
                     except Exception as e:
-                        raise RuntimeError(f"An error occured while processing {pdb_file}.")
+                        pass
+                        #raise RuntimeError(f"An error occured while processing {pdb_file}.")
                     
 
                 # Read motif information data and save into json file
