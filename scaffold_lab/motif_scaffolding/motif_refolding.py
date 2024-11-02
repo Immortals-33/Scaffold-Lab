@@ -127,7 +127,7 @@ class Refolder:
         if self._infer_conf.motif_csv_path is not None:
             self._motif_csv = self._infer_conf.motif_csv_path
         self._native_pdbs_dir = self._infer_conf.native_pdbs_dir
-        self._whole_benchmark_set = self._infer_conf.benchmark_set
+        self._whole_benchmark_set = None
 
         # Save config
         config_folder = os.path.basename(Path(self._output_dir))

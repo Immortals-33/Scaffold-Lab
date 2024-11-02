@@ -12,7 +12,7 @@ from typing import Optional, Union, List, Tuple, Dict
 from pathlib import Path
 from datetime import datetime
 
-import mdtraj as md
+#import mdtraj as md
 import MDAnalysis as mda
 import biotite
 import biotite.structure.io as strucio
