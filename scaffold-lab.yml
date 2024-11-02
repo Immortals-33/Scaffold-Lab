@@ -217,7 +217,7 @@ dependencies:
   - matplotlib-base=3.5.3=py39hf590b9c_0
   - matplotlib-inline=0.1.6=py39h06a4308_0
   - mdanalysis=2.2.0=py39h1832856_0
-  - mdtraj=1.9.7=py39h62423bb_4
+  #- mdtraj=1.9.7=py39h62423bb_4
   - mengine=1=h14c3975_1
   - mistune=2.0.5=pyhd8ed1ab_0
   - mizani=0.8.1=pyhd8ed1ab_1
