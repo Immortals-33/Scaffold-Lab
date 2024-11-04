@@ -80,6 +80,7 @@ class Refolder:
         self._conf = conf
         self._infer_conf = conf.inference
         self._sample_conf = self._infer_conf.samples
+        print("sample_conf:", self._sample_conf)
 
         # Sanity check
         if self._sample_conf.seq_per_sample < self._sample_conf.mpnn_batch_size:
@@ -122,11 +123,12 @@ class Refolder:
         self._sample_dir = self._infer_conf.backbone_pdb_dir
         self._CA_only = self._infer_conf.CA_only
         self._hide_GPU_from_pmpnn = self._infer_conf.hide_GPU_from_pmpnn
+        self._max_backbones = self._infer_conf.samples.max_backbones
 
         # Configs for motif-scaffolding
         if self._infer_conf.motif_csv_path is not None:
             self._motif_csv = self._infer_conf.motif_csv_path
-        self._native_pdbs_dir = self._infer_conf.native_pdbs_dir
+        self._motif_pdb = self._infer_conf.motif_pdb
         self._whole_benchmark_set = None
 
         # Save config
@@ -160,10 +162,15 @@ class Refolder:
                 design_pdb = os.path.join(self._sample_dir, pdb_file)
                 try:
                     case_num, backbone_name, sample_num = all_name.split("_") # "01_1BCF_1.pdb"
-                #parts = backbone_name.split('_')
-                #backbone_name = parts[0] if len(parts) == 2 else '_'.join(parts[:-1])
+                    if self._max_backbones and int(sample_num) >= self._max_backbones:
+                        self._log.info(f"Skipping sample {sample_num} because "
+                                f"max_backbones={self._max_backbones}")
+                        continue
+
+                    
+                    backbone_name = case_num + "_" + backbone_name
                     self._log.info(f"case_num: {case_num}, tested case: {backbone_name}, sample_num: {sample_num}")
-                    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
+                    reference_pdb = os.path.join(self._motif_pdb)
                 except ValueError:
                     self._log.warning(f"The naming format {all_name} is not as default. \
                     Try to use another format.")
@@ -171,7 +178,7 @@ class Refolder:
                         assert len(all_name.split("_")) == 2, f"{all_name} not following default!"
                         backbone_name, sample_num = all_name.split("_") # "1BCF_1.pdb"
                         self._log.info(f"tested case :{backbone_name}, sample_num: {sample_num}")
-                        reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
+                        reference_pdb = self._motif_pdb
                     except (ValueError, AssertionError):
                         self._log.warning(f"The naming format {all_name} is not as default. \
                         Try to rename the PDB file to format.")
@@ -183,7 +190,7 @@ class Refolder:
                                 break
                             else:
                                 raise ValueError(f"No benchmark case detected in {all_name}. Try to reformat.")
-                        reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
+                        reference_pdb = self._motif_pdb
                         rename_design_pdb = os.path.join(self._sample_dir, f"{backbone_name}_{naming_number}.pdb")
                         shutil.copy2(design_pdb, rename_design_pdb)
                         naming_number += 1
@@ -218,7 +225,7 @@ class Refolder:
                 if csv_data == None:
                     self._log.warning(f'Motif information is missing for {pdb_file}. Skipping...')
                     continue
-                contig, mask, motif_indices, redesign_info = csv_data
+                contig, mask, motif_indices, redesign_info, segments_order = csv_data
                 
                 motif_info_dict[f'{backbone_name}_{sample_num}'] = {
                     "contig": contig,
@@ -226,14 +233,9 @@ class Refolder:
                     "redesign_info": redesign_info
                 }
 
-
                 # Deal with contig
-                if 'IL17RA' in pdb_file:
-                    reference_contig = "E63-70/E101-110"
-                elif '6VW1' not in pdb_file:
-                    reference_contig = '/'.join(re.findall(r'[A-Za-z]+\d+-\d+', contig))
+                reference_contig = au.reference_contig_from_segments(reference_pdb, segments_order)
                 design_contig = au.motif_indices_to_contig(motif_indices)
-                print(f'design_contig: {design_contig}')
 
 
                 # Handle redesigned positions
@@ -241,15 +243,6 @@ class Refolder:
                     self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
                     motif_indices = au.introduce_redesign_positions(motif_indices, redesign_info)
 
-
-                # Handle complex case for PDB 6VW1
-                if backbone_name == '6VW1':
-                    reference_contig = "A24-42/A64-82"
-                    parts_6VW1 = design_contig.split("/")
-                    design_contig = '/'.join(parts_6VW1[:-1])
-                    chain_B = parts_6VW1[-1]
-                    start, end = map(int, chain_B[1:].split("-"))
-                    chain_B_indices = list(range(start, end + 1))
 
                 # Backbone Name Reading
                 #try:
@@ -280,7 +273,8 @@ class Refolder:
                     continue
 
                 os.makedirs(backbone_dir, exist_ok=True)
-                self._log.info(f'Running self-consistency on {backbone_name}')
+                self._log.info(f'Running self-consistency on {backbone_name}'
+                        f'sample {sample_num}')
                 shutil.copy2(os.path.join(self._sample_dir, pdb_file), backbone_dir)
                 print(f'copied {pdb_file} to {backbone_dir}')
 
@@ -717,10 +711,12 @@ class Evaluator:
         self._infer_conf = conf.inference
         self._eval_conf = conf.evaluation
         self._result_dir = self._infer_conf.output_dir
+        self._visualize = self._infer_conf.visualize
 
         self._foldseek_path = self._eval_conf.foldseek_path
         self._foldseek_database = self._eval_conf.foldseek_database
         self._assist_protein_path = self._eval_conf.assist_protein
+        self._motif_pdb = self._infer_conf.motif_pdb
 
         self.folding_method = self._infer_conf.predict_method
 
@@ -844,23 +840,26 @@ class Evaluator:
             f.write(f'Novelty: {mean_novelty}\n')
         """
         # Visualization
-        if os.path.exists(diversity_result_path):
+        if self._visualize and os.path.exists(diversity_result_path):
             pu.plot_metrics_distribution(
-            input=os.path.join(self._result_dir, 'complete_results.csv'),
-            save_path=self._result_dir
-        )
+                input=os.path.join(self._result_dir, 'complete_results.csv'),
+                save_path=self._result_dir
+                )
 
-        # Pymol session files
-            native_backbones = self._conf.inference.native_pdbs_dir
+
+            # Pymol session files
+            reference_pdb = os.path.join(self._motif_pdb)
+
             pu.motif_scaffolding_pymol_write(
-            unique_designable_backbones=os.path.join(self._result_dir, 'unique_designable_backbones'),
-            native_backbones=native_backbones,
-            motif_json=os.path.join(self._result_dir, 'motif_info.json'),
-            save_path=os.path.join(self._result_dir, 'pymol_session.pse')
-        )        
+                unique_designable_backbones=os.path.join(self._result_dir, 'unique_designable_backbones'),
+                reference_pdb=reference_pdb,
+                motif_json=os.path.join(self._result_dir, 'motif_info.json'),
+                save_path=os.path.join(self._result_dir, 'pymol_session.pse')
+                )        
 
 
-@hydra.main(version_base=None, config_path="../../config", config_name="motif_scaffolding.yaml")
+@hydra.main(version_base=None, config_path="../../config",
+        config_name="motif_scaffolding.yaml")
 def run(conf: DictConfig) -> None:
 
 

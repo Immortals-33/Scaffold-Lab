@@ -15,7 +15,7 @@ mpl.rcParams['lines.linewidth'] = 1
 
 def motif_scaffolding_pymol_write(
     unique_designable_backbones: Union[str, Path],
-    native_backbones: Union[str, Path],
+    reference_pdb: Union[str, Path],
     motif_json: Union[str, Path],
     save_path: Union[str, Path],
     native_motif_color: Optional[str] = "tellurium",
@@ -30,7 +30,6 @@ def motif_scaffolding_pymol_write(
     """
 
     unique_designable_backbones_pdb = [i.replace(".pdb","") for i in os.listdir(unique_designable_backbones) if i.endswith('.pdb')]
-    native_pdb = f"{native_backbones}/{unique_designable_backbones_pdb[0].split('_')[0]}.pdb"
     with open(motif_json,"r") as f:
         info = json.load(f)
     design_name_motif = {}
@@ -38,7 +37,7 @@ def motif_scaffolding_pymol_write(
         design_name_motif[i] = info[i]["motif_idx"]
     # re-initialize the pymol
     cmd.reinitialize()
-    cmd.load(native_pdb, "native_pdb")
+    cmd.load(reference_pdb, "native_pdb")
     contig = list(info.values())[0]["contig"]
     # "contig": "31-31/B25-46/32-32/A32/A4/A5"
     contig_list = [i for i in contig.split("/") if not i[0].isdigit()]

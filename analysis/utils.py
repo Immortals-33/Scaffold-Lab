@@ -421,6 +421,30 @@ def write_seqs_to_fasta(
         fasta_instance[header] = string
     fasta_instance.write(fasta_path)
 
+
+from Bio.PDB import PDBParser
+def reference_contig_from_segments(pdb_file, segment_order):
+    parser = PDBParser(QUIET=True)
+    structure = parser.get_structure("structure", pdb_file)
+    
+    chain_ranges = []
+    
+    # Split the chain_order string into a list of chain identifiers
+    chains = segment_order.split(";")
+    
+    for chain_id in chains:
+        chain = structure[0][chain_id]
+        residues = list(chain.get_residues())
+        
+        # Find the range of residue numbers in the chain
+        if residues:
+            start_res = residues[0].get_id()[1]  # Start residue number
+            end_res = residues[-1].get_id()[1]   # End residue number
+            chain_ranges.append(f"{chain_id}{start_res}-{end_res}")
+    
+    # Join all chain ranges with "/" separator
+    return "/".join(chain_ranges)
+
 def get_csv_data(
     csv_info: Union[str, Path],
     pdb_name: str,
@@ -446,6 +470,7 @@ def get_csv_data(
     sample_item = csv_info[(csv_info['pdb_name'] == pdb_name) & (csv_info['sample_num'] == int(sample_num))]
     if not sample_item.empty:
         contig = sample_item['contig'].iloc[0]
+        segments_order = sample_item['segment_order'].iloc[0]
         length, motif_indices, motif_mask = generate_indices_and_mask(contig)
         if 'motif_indices' not in csv_info.columns:
             csv_info['motif_indices'] = None
@@ -459,7 +484,8 @@ def get_csv_data(
             sample_item['contig'].iloc[0],
             motif_mask,
             motif_indices,
-            sample_item['redesign_positions'].iloc[0] if 'redesign_positions' in sample_item.columns and not pd.isna(sample_item['redesign_positions'].iloc[0]) else None
+            sample_item['redesign_positions'].iloc[0] if 'redesign_positions' in sample_item.columns and not pd.isna(sample_item['redesign_positions'].iloc[0]) else None,
+            segments_order
         )
 
 
