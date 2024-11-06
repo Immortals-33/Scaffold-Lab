@@ -389,7 +389,7 @@ class Refolder:
             pmpnn_args.append('--ca_only')
 
         # Fix desired motifs
-        if motif_indices is not None:
+        if (motif_indices is not None) and (len(motif_indices) !=0):
             fixed_positions = au.motif_indices_to_fixed_positions(motif_indices)
             chains_to_design = "A"
             # This is particularlly for 6VW1
@@ -881,7 +881,6 @@ def run(conf: DictConfig) -> None:
     evaluator.run_evaluation()
     elapsed_time = time.time() - start_time
     print(f'Evaluation finished in {elapsed_time:.2f}s. Voila!')
-
 
 if __name__ == '__main__':
     run()
