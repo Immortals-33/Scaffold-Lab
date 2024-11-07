@@ -1,3 +1,3 @@
-pdb_name,sample_num,contig,redesign_positions
-2KL8,2,A1-7/20/A28-79,A3-5;A33;A36
-2KL8,33,A1-7/20/A28-79,A3-5;A33;A36
+,pdb_name,sample_num,contig,redesign_positions,segment_order
+0,2KL8,2,A1-7/20/A28-79,A3-5;A33;A36,A;B
+1,2KL8,33,A1-7/20/A28-79,A3-5;A33;A36,A;B

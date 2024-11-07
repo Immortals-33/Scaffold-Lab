@@ -226,16 +226,18 @@ class Refolder:
                     self._log.warning(f'Motif information is missing for {pdb_file}. Skipping...')
                     continue
                 contig, mask, motif_indices, redesign_info, segments_order = csv_data
+
+                # Directly extract contig from motif_pdb files
+                reference_contig = au.reference_contig_from_segments(reference_pdb, segments_order)
+                # The contig in designed pdb files
+                design_contig = au.motif_indices_to_contig(motif_indices)
                 
+                # Store information for later pymol visualization
                 motif_info_dict[f'{backbone_name}_{sample_num}'] = {
-                    "contig": contig,
+                    "contig": reference_contig,
                     "motif_idx": motif_indices,
                     "redesign_info": redesign_info
                 }
-
-                # Deal with contig
-                reference_contig = au.reference_contig_from_segments(reference_pdb, segments_order)
-                design_contig = au.motif_indices_to_contig(motif_indices)
 
 
                 # Handle redesigned positions
@@ -244,16 +246,7 @@ class Refolder:
                     motif_indices = au.introduce_redesign_positions(motif_indices, redesign_info)
 
 
-                # Backbone Name Reading
-                #try:
-                #    case_num, reference_name,  = backbone_name.split(".pdb").split("_")
-                #if '_' in backbone_name: # Handle length-variable design for different PDB cases
-                #    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name.split("_")[0]}.pdb')
-                #else:
-                #    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
-                #design_pdb = os.path.join(self._sample_dir, pdb_file)
-
-                # Extract motif and calculate motif-RMSD
+                # Extract motif and calculate backbone motif-RMSD, which is the `backbone_motif_rmsd` metric in outputs.
                 # !!Note: This `rms` is the motif-RMSD between native motif and initially-generated backbone,
                 # i.e. without refolding procedure.
                 reference_motif_CA = au.motif_extract(reference_contig,
@@ -711,12 +704,12 @@ class Evaluator:
         self._infer_conf = conf.inference
         self._eval_conf = conf.evaluation
         self._result_dir = self._infer_conf.output_dir
-        self._visualize = self._infer_conf.visualize
+        self._motif_pdb = self._infer_conf.motif_pdb
 
         self._foldseek_path = self._eval_conf.foldseek_path
         self._foldseek_database = self._eval_conf.foldseek_database
         self._assist_protein_path = self._eval_conf.assist_protein
-        self._motif_pdb = self._infer_conf.motif_pdb
+        self._visualize = self._eval_conf.visualize
 
         self.folding_method = self._infer_conf.predict_method
 

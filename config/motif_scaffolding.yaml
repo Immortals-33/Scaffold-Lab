@@ -12,7 +12,7 @@ inference:
   pmpnn_dir: ./tools/ProteinMPNN/
   output_dir: ./outputs/2KL8/
   motif_csv_path: ./demo/motif_scaffolding/motif_info.csv
-  motif_pdb: ./demo/motif_scaffolding/reference_pdbs/2KL8.pdb
+  motif_pdb: ./demo/motif_scaffolding/native_motifs/06_2KL8.pdb
   benchmark_set: None
   
   # Setting of ProteinMPNN
@@ -30,9 +30,6 @@ inference:
 
   predict_method: [ESMFold]
 
-  # Set true to create visualization plots
-  visualize: False
-
   af2:
     executive_colabfold_path: path_to_your_localcolabfold
     recycle: 10
@@ -49,3 +46,4 @@ evaluation:
   foldseek_path: None
   foldseek_database: ???
   foldseek_cores_for_pdbTM: None
+  visualize: True
