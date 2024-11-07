@@ -251,12 +251,13 @@ class Refolder:
                 # i.e. without refolding procedure.
                 reference_motif_CA = au.motif_extract(reference_contig,
                         reference_pdb, atom_part="CA")
-                design_motif = au.motif_extract(design_contig, design_pdb,
+                design_motif_CA = au.motif_extract(design_contig, design_pdb,
                         atom_part="CA")
-                rms = au.rmsd(reference_motif_CA, design_motif)
+                backbone_motif_rmsd = au.rmsd(reference_motif_CA, design_motif_CA)
 
                 # Extract motif with all backbone atoms for subsequent
                 # motif_rmsd computation on predicted folded structure.
+                design_motif = au.motif_extract(design_contig, design_pdb, atom_part="backbone")
                 reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
 
                 # Save outputs
@@ -281,20 +282,20 @@ class Refolder:
 
                 if backbone_name == '6VW1':
                     _ = self.run_self_consistency(
-                    sc_output_dir,
-                    pdb_path,
+                    decoy_pdb_dir=sc_output_dir,
+                    reference_pdb_path=pdb_path,
                     motif_mask=mask,
                     motif_indices=motif_indices,
-                    rms=rms,
+                    backbone_motif_rmsd=backbone_motif_rmsd,
                     complex_motif=chain_B_indices
                 )
                 else:
                     _ = self.run_self_consistency(
-                        sc_output_dir,
-                        pdb_path,
+                        decoy_pdb_dir=sc_output_dir,
+                        reference_pdb_path=pdb_path,
                         motif_mask=mask,
                         motif_indices=motif_indices,
-                        rms=rms,
+                        backbone_motif_rmsd=backbone_motif_rmsd,
                         ref_motif=reference_motif,
                         sample_contig=design_contig
                     )
@@ -311,7 +312,7 @@ class Refolder:
             reference_pdb_path: str,
             motif_mask: Optional[np.ndarray]=None,
             motif_indices: Optional[Union[List, str]]=None,
-            rms: Optional[float]=None,
+            backbone_motif_rmsd: Optional[float]=None,
             complex_motif: Optional[List]=None,
             ref_motif=None,
             sample_contig=None
@@ -322,6 +323,11 @@ class Refolder:
             decoy_pdb_dir: directory where designed protein files are stored.
             reference_pdb_path: path to reference protein file
             motif_mask: Optional mask of which residues are the motif.
+            motif_indices: Optionial list-like object indicating which positions are allowed to be redesigned.
+            backbone_motif_rmsd: The Motif-RMSD between the motifs of designed generated backbones (without refold) and native motifs.
+            complex_motif: (TBD) Add features for complex motif calculation.
+            ref_motif: Motif 3D corrdinates of native PDBs. Represented by backbone atoms.
+            sample_contig: The contig indicating the motif locations on designed backbones to calculating Motif-RMSD.
 
         Returns:
             Writes ProteinMPNN outputs to decoy_pdb_dir/seqs
@@ -533,8 +539,8 @@ class Refolder:
                     refold_motif_rmsd = su.calc_aligned_rmsd(
                         sample_motif, esm_motif)
                     mpnn_results['refold_motif_rmsd'].append(f'{refold_motif_rmsd:.3f}')
-                if rms is not None:
-                    mpnn_results['backbone_motif_rmsd'].append(f'{rms:.3f}')
+                if backbone_motif_rmsd is not None:
+                    mpnn_results['backbone_motif_rmsd'].append(f'{backbone_motif_rmsd:.3f}')
                 mpnn_results['sample_idx'].append(int(idx))
                 mpnn_results['rmsd'].append(f'{rmsd:.3f}')
                 mpnn_results['tm_score'].append(f'{tm_score:.3f}')
@@ -553,7 +559,7 @@ class Refolder:
             mpnn_results.sort_values('sample_idx', inplace=True)
             mpnn_results.to_csv(esm_csv_path, index=False)
 
-        # Run AF2
+        # Run AlphaFold2 (No MSA)
         if 'AlphaFold2' in self._forward_folding:
             self._log.info(f'Running AlphaFold2......')
 
@@ -595,8 +601,8 @@ class Refolder:
                     refold_motif_rmsd = su.calc_aligned_rmsd(
                         sample_motif, af2_motif)
                     af2_outputs[f'sample_{idx}']['refold_motif_rmsd'] = f'{refold_motif_rmsd:.3f}'
-                if rms is not None:
-                    af2_outputs[f'sample_{idx}']['backbone_motif_rmsd'] = f'{rms:.3f}'
+                if backbone_motif_rmsd is not None:
+                    af2_outputs[f'sample_{idx}']['backbone_motif_rmsd'] = f'{backbone_motif_rmsd:.3f}'
                 af2_outputs[f'sample_{idx}']['rmsd'] = f'{rmsd:.3f}'
                 af2_outputs[f'sample_{idx}']['tm_score'] = f'{tm_score:.3f}'
                 af2_outputs[f'sample_{idx}']['header'] = header

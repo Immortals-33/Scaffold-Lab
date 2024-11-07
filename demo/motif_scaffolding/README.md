@@ -11,16 +11,18 @@ When running refolding on motif-scaffolding task under this demo, we use `motif_
 * `contig`: The information on motifs and scaffolds of each designed protein. The contig grammar is adapted from [RFdiffusion](https://github.com/RosettaCommons/RFdiffusion?tab=readme-ov-file#motif-scaffolding) but with a little bit modification. To be short:
 
   * Consider each motif and each scaffold is a **part**. Different parts are split by `/`.
-  * The parts don't starts with letters correspond to **scaffold**. Different from the grammar in _RFdiffusion_, we use two same numbers and concatenate them using `-`. e.g. `20-20` represents a 20-residue scaffold.
+  * The parts don't starts with letters correspond to **scaffold**. e.g. `20` represents a 20-residue scaffold.
   * The parts starts with letters correspond to **motif**, where the letters correspond to the chain harboring the native motif. e.g. In this demo, `A1-7` represents the motif as residue 1-7 of chain A in _2KL8_.
 
-  Together is a complete contig to indicate the positions of motifs and scaffolds in both the designed and native proteins. e.g. `A1-7/20-20/A28-79` means the sample first place residue 1-7 of chain A in _2KL8_, then connected by a 20-residue scaffold and finally with another motifs of residue 28-79 of chain A in _2KL8_. 
+  Together is a complete contig to indicate the positions of motifs and scaffolds in both the designed and native proteins. e.g. `A1-7/20/A28-79` means the sample first place residue 1-7 of chain A in _2KL8_, then connected by a 20-residue scaffold and finally with another motifs of residue 28-79 of chain A in _2KL8_. 
 
 * `motif_indices`: A str-like list that represents the indexes of motif part. This is used to extract the designed motif and calculated against the native-one. Note: This is a **1-based** index system.
 
 * `mask`: Similar to `motif-indices`, this is a `[N,1]` boolean list that represent the motif information, where `False` means scaffold and `True` means motif. 
 
 * `redesign_positions`: Positions split by `;` here are allowed to be redesigned with ProteinMPNN. i.e. The residue types are changeable over those in native motifs.
+
+* `segment_order`: Segment order split by `;`, indicating the order of motifs appeared in the scaffolds under the circumstance of _multiple discontinuous motifs_. Each segment is represented by a `chain` ID displayed within the motif PDB files in `native_motifs/`. 
 
 Altogether, the main script runs as the following logic:
 
@@ -30,4 +32,4 @@ Altogether, the main script runs as the following logic:
 
 
 
-> This is an initial version and we're working on simplify the grammar to make it more user-friendly. Bug fixes and PR are also welcome!
+> This is an initial version and we're working on simplify the grammar to make it more user-friendly. Bug fixes and PR are always welcome!
