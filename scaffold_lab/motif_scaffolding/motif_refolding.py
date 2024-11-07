@@ -155,151 +155,152 @@ class Refolder:
 
             naming_number = 1
 
-            if ".pdb" in pdb_file:
+            if ".pdb" not in pdb_file:
+                continue
 
-                # Backbone name handling
-                all_name = os.path.splitext(pdb_file)[0]
-                design_pdb = os.path.join(self._sample_dir, pdb_file)
-                try:
-                    case_num, backbone_name, sample_num = all_name.split("_") # "01_1BCF_1.pdb"
-                    if self._max_backbones and int(sample_num) >= self._max_backbones:
-                        self._log.info(f"Skipping sample {sample_num} because "
-                                f"max_backbones={self._max_backbones}")
-                        continue
-
-                    
-                    backbone_name = case_num + "_" + backbone_name
-                    self._log.info(f"case_num: {case_num}, tested case: {backbone_name}, sample_num: {sample_num}")
-                    reference_pdb = os.path.join(self._motif_pdb)
-                except ValueError:
-                    self._log.warning(f"The naming format {all_name} is not as default. \
-                    Try to use another format.")
-                    try:
-                        assert len(all_name.split("_")) == 2, f"{all_name} not following default!"
-                        backbone_name, sample_num = all_name.split("_") # "1BCF_1.pdb"
-                        self._log.info(f"tested case :{backbone_name}, sample_num: {sample_num}")
-                        reference_pdb = self._motif_pdb
-                    except (ValueError, AssertionError):
-                        self._log.warning(f"The naming format {all_name} is not as default. \
-                        Try to rename the PDB file to format.")
-                        for native_pdb in self._whole_benchmark_set:
-                            print(f"native_pdb: {native_pdb}")
-                            if native_pdb in all_name.upper():
-                                print(f"all name upper: {all_name.upper()}")
-                                backbone_name = native_pdb
-                                break
-                            else:
-                                raise ValueError(f"No benchmark case detected in {all_name}. Try to reformat.")
-                        reference_pdb = self._motif_pdb
-                        rename_design_pdb = os.path.join(self._sample_dir, f"{backbone_name}_{naming_number}.pdb")
-                        shutil.copy2(design_pdb, rename_design_pdb)
-                        naming_number += 1
-
-
-                # The following part is a test version and needed to be cleaned up.
-                if self._whole_benchmark_set is not None:
-                    try:
-                        benchmark_set_info = pd.read_csv(self._whole_benchmark_set)
-                        reference_contig = benchmark_set_info.iloc[
-                            benchmark_set_info.iloc[:, 0] == backbone_name, 1
-                        ].values[0]
-
-                        #motif_pdb = os.path.join(, f"{backbone_name}.pdb")
-                        reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
-                    except FileNotFoundError:
-                        raise FileNotFoundError(f"Benchmark Information not found in {benchmark_set_info}.")
-                    except IndexError:
-                        raise ValueError(f"No contig value found for the name {backbone_name} in benchmark information.")
-                    except Exception as e:
-                        pass
-                        #raise RuntimeError(f"An error occured while processing {pdb_file}.")
-                    
-
-                # Read motif information data and save into json file
-                if os.path.exists(self._motif_csv):
-                    csv_data = au.get_csv_data(self._motif_csv, backbone_name, sample_num)
-                else:
-                    csv_data = au.parse_input_scaffold(
-                        os.path.join(self._sample_dir, pdb_file))
-
-                if csv_data == None:
-                    self._log.warning(f'Motif information is missing for {pdb_file}. Skipping...')
+            # Backbone name handling
+            all_name = os.path.splitext(pdb_file)[0]
+            design_pdb = os.path.join(self._sample_dir, pdb_file)
+            try:
+                case_num, backbone_name, sample_num = all_name.split("_") # "01_1BCF_1.pdb"
+                if self._max_backbones and int(sample_num) >= self._max_backbones:
+                    self._log.info(f"Skipping sample {sample_num} because "
+                            f"max_backbones={self._max_backbones}")
                     continue
-                contig, mask, motif_indices, redesign_info, segments_order = csv_data
 
-                # Directly extract contig from motif_pdb files
-                reference_contig = au.reference_contig_from_segments(reference_pdb, segments_order)
-                # The contig in designed pdb files
-                design_contig = au.motif_indices_to_contig(motif_indices)
                 
-                # Store information for later pymol visualization
-                motif_info_dict[f'{backbone_name}_{sample_num}'] = {
-                    "contig": reference_contig,
-                    "motif_idx": motif_indices,
-                    "redesign_info": redesign_info
-                }
+                backbone_name = case_num + "_" + backbone_name
+                self._log.info(f"case_num: {case_num}, tested case: {backbone_name}, sample_num: {sample_num}")
+                reference_pdb = os.path.join(self._motif_pdb)
+            except ValueError:
+                self._log.warning(f"The naming format {all_name} is not as default. \
+                Try to use another format.")
+                try:
+                    assert len(all_name.split("_")) == 2, f"{all_name} not following default!"
+                    backbone_name, sample_num = all_name.split("_") # "1BCF_1.pdb"
+                    self._log.info(f"tested case :{backbone_name}, sample_num: {sample_num}")
+                    reference_pdb = self._motif_pdb
+                except (ValueError, AssertionError):
+                    self._log.warning(f"The naming format {all_name} is not as default. \
+                    Try to rename the PDB file to format.")
+                    for native_pdb in self._whole_benchmark_set:
+                        print(f"native_pdb: {native_pdb}")
+                        if native_pdb in all_name.upper():
+                            print(f"all name upper: {all_name.upper()}")
+                            backbone_name = native_pdb
+                            break
+                        else:
+                            raise ValueError(f"No benchmark case detected in {all_name}. Try to reformat.")
+                    reference_pdb = self._motif_pdb
+                    rename_design_pdb = os.path.join(self._sample_dir, f"{backbone_name}_{naming_number}.pdb")
+                    shutil.copy2(design_pdb, rename_design_pdb)
+                    naming_number += 1
 
 
-                # Handle redesigned positions
-                if redesign_info is not None:
-                    self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
-                    motif_indices = au.introduce_redesign_positions(motif_indices, redesign_info)
+            # The following part is a test version and needed to be cleaned up.
+            if self._whole_benchmark_set is not None:
+                try:
+                    benchmark_set_info = pd.read_csv(self._whole_benchmark_set)
+                    reference_contig = benchmark_set_info.iloc[
+                        benchmark_set_info.iloc[:, 0] == backbone_name, 1
+                    ].values[0]
+
+                    #motif_pdb = os.path.join(, f"{backbone_name}.pdb")
+                    reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
+                except FileNotFoundError:
+                    raise FileNotFoundError(f"Benchmark Information not found in {benchmark_set_info}.")
+                except IndexError:
+                    raise ValueError(f"No contig value found for the name {backbone_name} in benchmark information.")
+                except Exception as e:
+                    pass
+                    #raise RuntimeError(f"An error occured while processing {pdb_file}.")
+                
+
+            # Read motif information data and save into json file
+            if os.path.exists(self._motif_csv):
+                csv_data = au.get_csv_data(self._motif_csv, backbone_name, sample_num)
+            else:
+                csv_data = au.parse_input_scaffold(
+                    os.path.join(self._sample_dir, pdb_file))
+
+            if csv_data == None:
+                self._log.warning(f'Motif information is missing for {pdb_file}. Skipping...')
+                continue
+            contig, mask, motif_indices, redesign_info, segments_order = csv_data
+
+            # Directly extract contig from motif_pdb files
+            reference_contig = au.reference_contig_from_segments(reference_pdb, segments_order)
+            # The contig in designed pdb files
+            design_contig = au.motif_indices_to_contig(motif_indices)
+            
+            # Store information for later pymol visualization
+            motif_info_dict[f'{backbone_name}_{sample_num}'] = {
+                "contig": reference_contig,
+                "motif_idx": motif_indices,
+                "redesign_info": redesign_info
+            }
 
 
-                # Extract motif and calculate backbone motif-RMSD, which is the `backbone_motif_rmsd` metric in outputs.
-                # !!Note: This `rms` is the motif-RMSD between native motif and initially-generated backbone,
-                # i.e. without refolding procedure.
-                reference_motif_CA = au.motif_extract(reference_contig,
-                        reference_pdb, atom_part="CA")
-                design_motif_CA = au.motif_extract(design_contig, design_pdb,
-                        atom_part="CA")
-                backbone_motif_rmsd = au.rmsd(reference_motif_CA, design_motif_CA)
-
-                # Extract motif with all backbone atoms for subsequent
-                # motif_rmsd computation on predicted folded structure.
-                design_motif = au.motif_extract(design_contig, design_pdb, atom_part="backbone")
-                reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
-
-                # Save outputs
-                backbone_dir = os.path.join(self._output_dir, f'{backbone_name}_{sample_num}')
-                if os.path.exists(backbone_dir):
-                    self._log.warning(f'Backbone {backbone_name} already existed, pass then.')
-                    continue
-
-                os.makedirs(backbone_dir, exist_ok=True)
-                self._log.info(f'Running self-consistency on {backbone_name}'
-                        f'sample {sample_num}')
-                shutil.copy2(os.path.join(self._sample_dir, pdb_file), backbone_dir)
-                print(f'copied {pdb_file} to {backbone_dir}')
-
-                #separate_pdb_folder = os.path.join(backbone_dir, backbone_name)
-                pdb_path = os.path.join(backbone_dir, pdb_file)
-                sc_output_dir = os.path.join(backbone_dir, 'self_consistency')
-                os.makedirs(sc_output_dir, exist_ok=True)
-                shutil.copy(pdb_path, os.path.join(
-                    sc_output_dir, os.path.basename(pdb_path)))
+            # Handle redesigned positions
+            if redesign_info is not None:
+                self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
+                motif_indices = au.introduce_redesign_positions(motif_indices, redesign_info)
 
 
-                if backbone_name == '6VW1':
-                    _ = self.run_self_consistency(
+            # Extract motif and calculate backbone motif-RMSD, which is the `backbone_motif_rmsd` metric in outputs.
+            # !!Note: This `rms` is the motif-RMSD between native motif and initially-generated backbone,
+            # i.e. without refolding procedure.
+            reference_motif_CA = au.motif_extract(reference_contig,
+                    reference_pdb, atom_part="CA")
+            design_motif_CA = au.motif_extract(design_contig, design_pdb,
+                    atom_part="CA")
+            backbone_motif_rmsd = au.rmsd(reference_motif_CA, design_motif_CA)
+
+            # Extract motif with all backbone atoms for subsequent
+            # motif_rmsd computation on predicted folded structure.
+            design_motif = au.motif_extract(design_contig, design_pdb, atom_part="backbone")
+            reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
+
+            # Save outputs
+            backbone_dir = os.path.join(self._output_dir, f'{backbone_name}_{sample_num}')
+            if os.path.exists(backbone_dir):
+                self._log.warning(f'Backbone {backbone_name} already existed, pass then.')
+                continue
+
+            os.makedirs(backbone_dir, exist_ok=True)
+            self._log.info(f'Running self-consistency on {backbone_name}'
+                    f'sample {sample_num}')
+            shutil.copy2(os.path.join(self._sample_dir, pdb_file), backbone_dir)
+            print(f'copied {pdb_file} to {backbone_dir}')
+
+            #separate_pdb_folder = os.path.join(backbone_dir, backbone_name)
+            pdb_path = os.path.join(backbone_dir, pdb_file)
+            sc_output_dir = os.path.join(backbone_dir, 'self_consistency')
+            os.makedirs(sc_output_dir, exist_ok=True)
+            shutil.copy(pdb_path, os.path.join(
+                sc_output_dir, os.path.basename(pdb_path)))
+
+
+            if backbone_name == '6VW1':
+                _ = self.run_self_consistency(
+                decoy_pdb_dir=sc_output_dir,
+                reference_pdb_path=pdb_path,
+                motif_mask=mask,
+                motif_indices=motif_indices,
+                backbone_motif_rmsd=backbone_motif_rmsd,
+                complex_motif=chain_B_indices
+            )
+            else:
+                _ = self.run_self_consistency(
                     decoy_pdb_dir=sc_output_dir,
                     reference_pdb_path=pdb_path,
                     motif_mask=mask,
                     motif_indices=motif_indices,
                     backbone_motif_rmsd=backbone_motif_rmsd,
-                    complex_motif=chain_B_indices
+                    ref_motif=reference_motif,
+                    sample_contig=design_contig
                 )
-                else:
-                    _ = self.run_self_consistency(
-                        decoy_pdb_dir=sc_output_dir,
-                        reference_pdb_path=pdb_path,
-                        motif_mask=mask,
-                        motif_indices=motif_indices,
-                        backbone_motif_rmsd=backbone_motif_rmsd,
-                        ref_motif=reference_motif,
-                        sample_contig=design_contig
-                    )
-                self._log.info(f'Done sample: {pdb_path}')
+            self._log.info(f'Done sample: {pdb_path}')
         output_json_path = os.path.join(self._output_dir, 'motif_info.json')
         with open(output_json_path, 'w') as json_file:
             json.dump(motif_info_dict, json_file, indent=4, separators=(",", ": "), sort_keys=True)
