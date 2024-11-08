@@ -757,7 +757,9 @@ class Evaluator:
         self._log.info(f'Designable backbones for {self._result_dir}: {designability_count}.')
 
         complete_results.to_csv(complete_csv_path, index=False)
-        summary_results.to_csv(summary_csv_path, index=False)
+        summary_column_order = ['sample_idx', 'Success','rmsd', 'motif_rmsd',
+            'length', 'sequence', 'sample_path', 'backbone_path']
+        summary_results.to_csv(summary_csv_path, columns=summary_column_order, index=False)
 
         # Diversity Evaluation
         successful_backbone_dir = os.path.join(self._result_dir, 'successful_backbones')
@@ -828,17 +830,6 @@ class Evaluator:
             designable_count=designability_count,
             diversity_result=diversity,
             novelty_value=novelty_score)
-        """
-        designable_fraction = f'{(designability_count / (pdb_count + 1e-6) * 100):.2f}'
-        diversity_value = diversity['Diversity']
-        with open (os.path.join(self._result_dir, 'summary.txt'), 'w') as f:
-            f.write('-------------------Summary-------------------\n')
-            f.write(f'The following are evaluation results for {os.path.abspath(self._result_dir)}:\n')
-            f.write(f'Evaluated Protein: {os.path.basename(os.path.normpath(self._result_dir))}\n')
-            f.write(f'Designability Fraction: {designable_fraction}%\n')
-            f.write(f'Diversity: {diversity_value}\n')
-            f.write(f'Novelty: {mean_novelty}\n')
-        """
         # Visualization
         if self._visualize and os.path.exists(diversity_result_path):
             pu.plot_metrics_distribution(

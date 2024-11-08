@@ -902,54 +902,13 @@ def write_summary_results(
 ) -> None:
 
     designable_fraction = f'{(designable_count / (pdb_count + 1e-6) * 100):.2f}'
-    diversity_value = f'{diversity_result["Diversity"]:.2f}'
+    number_of_solutions = f'{diversity_result["Clusters"]}'
     novelty_value = f'{novelty_value:.2f}' if isinstance(novelty_value, (int or float)) else novelty_value
 
     with open (os.path.join(stored_path, 'summary.txt'), 'w') as f:
         f.write('-------------------Summary-------------------\n')
         f.write(f'The following are evaluation results for {os.path.abspath(stored_path)}:\n')
         f.write(f'Evaluated Protein: {os.path.basename(os.path.normpath(stored_path))}\n')
-        f.write(f'Designability Fraction: {designable_fraction}%\n')
-        f.write(f'Diversity: {diversity_value}\n')
-        f.write(f'Novelty Score: {novelty_value}\n')
-
-
-NAME_TO_FULL_LENGTH = {
- '5TPN': [75],
- '5IUS': [100],
- '3IXT': [75],
- '5YUI': [75],
- '1YCR': [75],
- '2KL8': [100],
- '7MRX': [75],
- '4JHW': [125],
- '4ZYP': [75],
- '5WN9': [75],
- '5TRV': [75],
- '6E6R': [200, 75],
- '6EXZ': [200, 100],
- '7A8S': [100],
- '7AD5': [125],
- '7AHO': [125],
- '7BNY': [125],
- '7DGW': [125],
- '7KUW': [125],
- '7KWW': [125],
- '7MQQ': [125],
- '7S5L': [125],
- '7WRK': [125],
- '6CPA': [200],
- '1MPY': [125],
- '1B73': [125],
- '2RKX': [225],
- '3B5V': [200],
- '4XOJ': [150],
- '1QY3': [225],
- '1LDB': [125],
- '1ITU': [150],
- '1YOV': [75],
- '1A41': [100],
- '1LCC': [150],
- '5ZE9': [100],
- '7UWL': [175]
-}
+        f.write(f'Number of distict solutions: {number_of_solutions}\n')
+        f.write(f'Novelty: {novelty_value}\n')
+        f.write(f'Success rate: {designable_fraction}%\n')
