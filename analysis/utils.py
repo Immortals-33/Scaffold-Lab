@@ -547,14 +547,16 @@ def motif_indices_to_fixed_positions(motif_indices: Union[str, List]) -> str:
     return f"{fixed_positions}"
 
 
-def parse_contig_string(contig_string):
+def parse_contig_string(
+    contig_string: str,
+    split_char: str="/"
+    ):
     # Code by @blt2114
     contig_segments = []
-    for motif_segment in contig_string.split(";"):
+    for motif_segment in contig_string.split(split_char):
         segment_dict ={"chain":motif_segment[0]}
         if "-" in motif_segment:
             segment_dict["start"], segment_dict["end"] = motif_segment[1:].split("-")
-
         else:
             segment_dict["start"] = segment_dict["end"] = motif_segment[1:]
         contig_segments.append(segment_dict)
@@ -893,6 +895,7 @@ def parse_input_scaffold(
         #design_motif
     )
 
+
 def write_summary_results(
     stored_path: Union[str, Path],
     pdb_count: Union[int, float],
@@ -909,6 +912,224 @@ def write_summary_results(
         f.write('-------------------Summary-------------------\n')
         f.write(f'The following are evaluation results for {os.path.abspath(stored_path)}:\n')
         f.write(f'Evaluated Protein: {os.path.basename(os.path.normpath(stored_path))}\n')
-        f.write(f'Number of distict solutions: {number_of_solutions}\n')
+        f.write(f'Number of distinct solutions: {number_of_solutions}\n')
         f.write(f'Novelty: {novelty_value}\n')
         f.write(f'Success rate: {designable_fraction}%\n')
+
+
+def parse_contig(contig: str) -> List[Tuple[str, int, int]]:
+    """
+    Parse contig into a list of tuples with (chain, start, end) or ("scaffold", scaffold_length).
+    """
+    segments = []
+    for part in contig.split("/"):
+        if part[0].isalpha():  # Motif segment
+            chain = part[0]
+            if "-" in part[1:] and len(part[1:].split("-")) == 2:
+                start, end = map(int, part[1:].split("-"))
+                segments.append((chain, start, end))
+            else:
+                start = end = int(part[1:])
+                segments.append((chain, start, end))
+        else:  # Scaffold segment
+            if len(part.split("-")) == 2:
+                scaffold_length = int(part.split("-")[0])
+            else:
+                scaffold_length = int(part)
+            segments.append(("scaffold", scaffold_length))  # No chain for scaffold
+    return segments
+
+
+def parse_redesign_positions(positions: str) -> List[Tuple[str, int, int]]:
+    """
+    Parse redesign positions into a list of tuples (chain, start, end).
+    Handles both single positions (e.g., 'A18') and ranges (e.g., 'A19-20').
+    """
+    parsed_positions = []
+    for pos in positions.split(";"):
+        chain = pos[0]
+        if "-" in pos:
+            start, end = map(int, pos[1:].split("-"))
+            parsed_positions.append((chain, start, end))
+        else:  # Single position like 'A18'
+            start = end = int(pos[1:])
+            parsed_positions.append((chain, start, end))
+    return parsed_positions
+
+
+def get_non_redesign_positions(contig_segments: List[Tuple[Union[str, None], int, int]], redesign_segments: List[Tuple[str, int, int]]) -> List[Tuple[str, int, int]]:
+    """
+    Determine non-redesign positions by subtracting redesign segments from contig segments.
+    """
+    non_redesign_positions = []
+
+    for segment in contig_segments:
+        if segment[0] == "scaffold":
+            continue  # Skip scaffold segments
+
+        chain, start, end = segment
+        current_pos = start
+
+        while current_pos <= end:
+            # Check if this position is within any redesign segment
+            is_redesign = any(chain == r_chain and r_start <= current_pos <= r_end for r_chain, r_start, r_end in redesign_segments)
+            if not is_redesign:
+                non_redesign_positions.append((chain, current_pos))
+            current_pos += 1
+
+    return non_redesign_positions
+
+
+def check_motif_positions(
+    motif_pdb_path: Union[str, Path],
+    reference_contig: str,
+    segment_order: str,
+    redesign_positions: str
+):
+    # Parse contig and redesign positions
+    contig_segments = parse_contig(reference_contig)
+    redesign_segments = parse_redesign_positions(redesign_positions)
+    segment_order_list = segment_order.split(";")
+    print(f"contig segments: {contig_segments}")
+    print(f"redesign segments: {redesign_segments}")
+    print(f"segment_order list: {segment_order_list}")
+
+    # Build a mapping of segment names (A, B, etc.) to contig segments
+    motif_mapping = {}
+    motif_index = 0  # Index for tracking motif segments
+
+    for segment in contig_segments:
+        if segment[0] != "scaffold":  # Motif segment
+            chain, start, end = segment
+            print(f"segment: {segment}")
+            segment_name = segment_order_list[motif_index]
+            motif_mapping[segment_name] = (chain, start, end)
+            motif_index += 1
+
+    # Load motif PDB using biotite
+    pdb_array = strucio.load_structure(motif_pdb_path)
+    ca_atoms = pdb_array[pdb_array.atom_name == "CA"]  # Select only CA atoms
+
+    # Check redesign positions
+    for chain, start, end in redesign_segments:
+        for segment_name, (motif_chain, motif_start, motif_end) in motif_mapping.items():
+            if chain == motif_chain and motif_start <= start <= motif_end:
+                relative_start = start - motif_start + 1
+                relative_end = end - motif_start + 1
+                motif_chain_atoms = ca_atoms[ca_atoms.chain_id == segment_name]
+
+                for i in range(relative_start, relative_end + 1):
+                    residue = motif_chain_atoms[motif_chain_atoms.res_id == i]
+                    if len(residue) == 0:
+                        log.warning(f"Residue {segment_name}{i} not found in motif PDB file {os.path.basename(motif_pdb_path)}.")
+                    elif residue[0].res_name != "UNK":
+                        log.warning(f"Residue {segment_name}{i} in {os.path.basename(motif_pdb_path)} is not 'UNK' but '{residue[0].res_name}'. This is not allowed to be redesigned.")
+
+                print(f"Redesign positions {chain}{start}-{end} correctly marked as 'UNK' in chain {segment_name} of {os.path.basename(motif_pdb_path)}.")
+
+    # Check whether positions not allowed to be redesigned contained within the provided list of redesign positions 
+    # i.e. The complementary set of {motif_positions} and {redesign_positions}
+    non_redesign_segments = get_non_redesign_positions(contig_segments, redesign_segments)
+    print(f"non redesign segments: {non_redesign_segments}")
+    for chain, pos in non_redesign_segments:
+        for segment_name, (motif_chain, motif_start, motif_end) in motif_mapping.items():
+            if chain == motif_chain and motif_start <= pos <= motif_end:
+                relative_pos = pos - motif_start + 1
+                motif_chain_atoms = ca_atoms[ca_atoms.chain_id == segment_name]
+
+                residue = motif_chain_atoms[motif_chain_atoms.res_id == relative_pos]
+                if len(residue) == 0:
+                    log.warning(f"Residue {segment_name}{relative_pos} not found in motif PDB.")
+                elif residue[0].res_name == "UNK":
+                    log.warning(f"Residue {segment_name}{relative_pos} should not be 'UNK'. Found 'UNK'.")
+
+                print(f"Non-redesign position {chain}{pos} correctly marked in chain {segment_name}.")
+
+    print("All redesign and non-redesign positions are correctly verified.")
+
+
+# -------------------- Utils for redesign positions parsing -----------------------#
+def parse_contig_to_dict(contig_string: str) -> List[Dict[str, Union[str, int]]]:
+    """
+    Parse a contig-like string (e.g., "10/A92-99/15") into a list of dictionaries.
+    Each dictionary has the chain, start, and end positions.
+    """
+    contig_segments = []
+    for motif_segment in contig_string.split("/"):
+        if motif_segment[0].isalpha():  # Motif segment
+            chain = motif_segment[0]
+            if len(motif_segment[1:].split("-")) == 2:
+                start, end = map(int, motif_segment[1:].split("-"))
+            else:
+                start = end = int(motif_segment[1:])
+            contig_segments.append({"chain": chain, "start": start, "end": end})
+        else:  # Scaffold segment
+            scaffold_length = int(motif_segment)
+            contig_segments.append({"chain": "scaffold", "length": scaffold_length})
+    return contig_segments
+
+def quantize_redesign_positions(redesign_info: str) -> List[str]:
+    """
+    Parse redesign positions into a list of individual chain-position strings.
+    For example, "A19-21;A23" becomes ["A19", "A20", "A21", "A23"].
+    """
+    redesign_list = []
+    for segment in redesign_info.split(";"):
+        chain = segment[0]
+        if "-" in segment:
+            start, end = map(int, segment[1:].split("-"))
+            redesign_list.extend([f"{chain}{i}" for i in range(start, end + 1)])
+        else:
+            redesign_list.append(segment)
+    return redesign_list
+
+
+def modified_introduce_redesign_positions(
+    motif_indices: List[int],
+    redesign_positions: str,
+    contig: str
+) -> List[int]:
+    """
+    Adjust motif indices to exclude redesign positions based on native redesign positions.
+
+    Args:
+        motif_indices (List[int]): Original list of indices in the designed protein.
+        redesign_positions (str): Redesign positions in the native protein.
+        contig (str): Contig string specifying scaffold and motif segments.
+
+    Returns:
+        List[int]: Updated list of motif indices with redesign positions removed.
+    """
+    # Parse the contig and redesign positions
+    contig_segments = parse_contig_to_dict(contig)
+    redesign_list = quantize_redesign_positions(redesign_positions)
+    print(f"contig segments: {contig_segments}, redesign_list: {redesign_list}")
+
+    # Build a dictionary mapping native positions to motif indices
+    native_to_index = {}
+    index_pointer = 0
+
+    for segment in contig_segments:
+        if segment['chain'] == "scaffold":
+            continue  # Skip scaffold segments
+
+        chain = segment["chain"]
+        start = segment["start"]
+        end = segment["end"]
+
+        # Iterate over each native position and map it to the corresponding motif index
+        for native_pos in range(start, end + 1):
+            native_key = f"{chain}{native_pos}"
+            if index_pointer < len(motif_indices):
+                native_to_index[native_key] = motif_indices[index_pointer]
+                index_pointer += 1
+            else:
+                break
+
+    # Filter out the redesign positions from the mapping
+    updated_indices = [
+        index for native_key, index in native_to_index.items()
+        if native_key not in redesign_list
+    ]
+
+    return updated_indices

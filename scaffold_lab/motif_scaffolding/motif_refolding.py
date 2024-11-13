@@ -232,6 +232,7 @@ class Refolder:
             reference_contig = au.reference_contig_from_segments(reference_pdb, segments_order)
             # The contig in designed pdb files
             design_contig = au.motif_indices_to_contig(motif_indices)
+
             
             # Store information for later pymol visualization
             motif_info_dict[f'{backbone_name}_{sample_num}'] = {
@@ -244,7 +245,15 @@ class Refolder:
             # Handle redesigned positions
             if redesign_info is not None:
                 self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
-                motif_indices = au.introduce_redesign_positions(motif_indices, redesign_info)
+                fixed_idx_for_mpnn = au.modified_introduce_redesign_positions(motif_indices, redesign_info, contig)
+
+                # Check information for redesign positions
+                au.check_motif_positions(
+                    motif_pdb_path=reference_pdb,
+                    reference_contig=contig,
+                    segment_order=segments_order,
+                    redesign_positions=redesign_info
+                )
 
 
             # Extract motif and calculate backbone motif-RMSD, which is the `backbone_motif_rmsd` metric in outputs.
@@ -261,14 +270,15 @@ class Refolder:
             design_motif = au.motif_extract(design_contig, design_pdb, atom_part="backbone")
             reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
 
+
             # Save outputs
             backbone_dir = os.path.join(self._output_dir, f'{backbone_name}_{sample_num}')
             if os.path.exists(backbone_dir):
-                self._log.warning(f'Backbone {backbone_name} already existed, pass then.')
+                self._log.warning(f'Backbone {backbone_name}_{sample_num} already existed, pass then.')
                 continue
 
             os.makedirs(backbone_dir, exist_ok=True)
-            self._log.info(f'Running self-consistency on {backbone_name}'
+            self._log.info(f'Running self-consistency on {backbone_name}, '
                     f'sample {sample_num}')
             shutil.copy2(os.path.join(self._sample_dir, pdb_file), backbone_dir)
             print(f'copied {pdb_file} to {backbone_dir}')
@@ -286,16 +296,17 @@ class Refolder:
                 decoy_pdb_dir=sc_output_dir,
                 reference_pdb_path=pdb_path,
                 motif_mask=mask,
-                motif_indices=motif_indices,
+                fixed_indices=fixed_idx_for_mpnn,
                 backbone_motif_rmsd=backbone_motif_rmsd,
-                complex_motif=chain_B_indices
+                #complex_motif=chain_B_indices
             )
+
             else:
                 _ = self.run_self_consistency(
                     decoy_pdb_dir=sc_output_dir,
                     reference_pdb_path=pdb_path,
                     motif_mask=mask,
-                    motif_indices=motif_indices,
+                    fixed_indices=fixed_idx_for_mpnn,
                     backbone_motif_rmsd=backbone_motif_rmsd,
                     ref_motif=reference_motif,
                     sample_contig=design_contig
@@ -312,7 +323,7 @@ class Refolder:
             decoy_pdb_dir: str,
             reference_pdb_path: str,
             motif_mask: Optional[np.ndarray]=None,
-            motif_indices: Optional[Union[List, str]]=None,
+            fixed_indices: Optional[Union[List, str]]=None,
             backbone_motif_rmsd: Optional[float]=None,
             complex_motif: Optional[List]=None,
             ref_motif=None,
@@ -324,7 +335,7 @@ class Refolder:
             decoy_pdb_dir: directory where designed protein files are stored.
             reference_pdb_path: path to reference protein file
             motif_mask: Optional mask of which residues are the motif.
-            motif_indices: Optionial list-like object indicating which positions are allowed to be redesigned.
+            fixed_indices: Optionial list-like object indicating which positions are allowed to be redesigned.
             backbone_motif_rmsd: The Motif-RMSD between the motifs of designed generated backbones (without refold) and native motifs.
             complex_motif: (TBD) Add features for complex motif calculation.
             ref_motif: Motif 3D corrdinates of native PDBs. Represented by backbone atoms.
@@ -389,20 +400,18 @@ class Refolder:
             pmpnn_args.append('--ca_only')
 
         # Fix desired motifs
-        if (motif_indices is not None) and (len(motif_indices) !=0):
-            fixed_positions = au.motif_indices_to_fixed_positions(motif_indices)
+        if (fixed_indices is not None) and (len(fixed_indices) !=0):
+            fixed_positions = au.motif_indices_to_fixed_positions(fixed_indices)
+            print(f"fix positions: {fixed_positions}")
             chains_to_design = "A"
             # This is particularlly for 6VW1
             if complex_motif is not None:
-                motif_indices = motif_indices.strip('[]').split(', ')
-                motif_indices = sorted([int(index) for index in motif_indices])
-                motif_indices = [element for element in motif_indices if element not in complex_motif]
+                fixed_indices = fixed_indices.strip('[]').split(', ')
+                fixed_indices = sorted([int(index) for index in fixed_indices])
+                fixed_indices = [element for element in fixed_indices if element not in complex_motif]
                 complex_motif = " ".join(map(str, complex_motif)) # List2str
-                fixed_positions = " ".join(map(str, motif_indices)) # List2str
-                print(motif_indices)
-                print(fixed_positions)
+                fixed_positions = " ".join(map(str, fixed_indices)) # List2str
                 fixed_positions = fixed_positions + ", " + complex_motif
-                print(fixed_positions)
                 chains_to_design = "A B"
             path_for_fixed_positions = os.path.join(decoy_pdb_dir, "fixed_pdbs.jsonl")
 
@@ -697,6 +706,7 @@ class Refolder:
                     raise e
 
 class Evaluator:
+
     def __init__(
     self,
     conf:DictConfig,
