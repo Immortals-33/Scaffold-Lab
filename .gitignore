@@ -16,3 +16,4 @@ outputs/
 tools/ProteinMPNN/new_protein_mpnn_run.py
 *~
 .*
+*egg-info*
