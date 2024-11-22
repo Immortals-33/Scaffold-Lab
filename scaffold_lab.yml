@@ -1,4 +1,4 @@
-name: scaffold-lab
+name: scaffold_lab
 channels:
   - bioconda
   - pytorch

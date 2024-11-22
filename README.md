@@ -72,8 +72,11 @@ We recommend using [Conda](https://anaconda.org/anaconda/conda) to set up depend
 git clone https://github.com/Immortals-33/Scaffold-Lab.git
 cd Scaffold-Lab
 # Create and activate environment
-conda env create -f scaffold-lab.yml
-source activate scaffold-lab
+conda env create -f scaffold_lab.yml
+source activate scaffold_lab
+
+# Install scaffold_lab as a package.
+pip install -e .
 ```
 
 You may also need to build a Foldseek database for diversity and novelty evaluation.
