@@ -17,7 +17,7 @@ inference:
   
   # Setting of ProteinMPNN
   CA_only: True
-  hide_GPU_from_pmpnn: False
+  hide_GPU_from_pmpnn: True
 
   samples:
     # Max backbones to evaluate and incorporate into results
@@ -45,5 +45,5 @@ evaluation:
   assist_protein: ./tools/assistant_protein/assist_protein.pdb
   foldseek_path: None
   foldseek_database: ???
-  foldseek_cores_for_pdbTM: None
+  foldseek_cores_for_pdbTM: 4
   visualize: True
