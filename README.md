@@ -132,7 +132,23 @@ python scaffold_lab/motif_scaffolding/motif_refolding.py evaluation.foldseek_dat
 
 This performs a evaluation on `demo/motif_scaffolding/2KL8/` where the outputs would be saved under `outputs/2KL8/`.
 
-***
+#### Scaffold information file (`motif_info.csv`)
+
+`motif_refolding.py` requires a metadata file, [motif_info.csv](https://github.com/Immortals-33/Scaffold-Lab/blob/main/demo/motif_scaffolding/motif_info.csv), with information relating generated scaffolds to the motif.
+Within our grammar system, a complete contig includes **two** to **four** parts separated by a `,` (**comma**). For example, a row of this file is `0,2KL8,2,A1-7/20/A28-79,A3-5;A33;A36,A;B`. Separated by the commas are four parts:
+This csv file has the following fields for each scaffold:
+* **pdb_name** The reference PDB name.  This is for extracting reference motifs for calculation and identification. e.g. `2KL8` in this case.
+* **sample_num** gives the sample id number for cases when there are multiple scaffolds to be evaluated.
+* **_contig__** (motif placement) This part shows the information of where the motifs and scaffolds are placed. e.g. `A1-7/20/A28-79	` in this case.
+  - The **motif** parts start with an uppercase letter and contain information about the corresponding **native motifs.** If the numbers are continuous, then separated by **hyphens**. The boundaries of motifs and scaffolds are separated by **slashes**.
+  - The **scaffold** parts are single numbers, which is **deterministic** as the scaffold part of the uploaded PDB files are already placed during the design process. **The motif parts indicate residues in native PDBs but not scaffold PDBs. We choose this way because this would be convenient for users to locate which part the motifs are mimicking corresponding to the reference PDBs.**
+  - Together, the motif placement part provides information about which parts are motifs (indicated by chain letter) and how they correspond to native ones, and the overall length of the designed scaffold. For example, `1A1-7/20/A28-79` means the scaffold parts contains:
+    - First a motif segment containing residues 1-7 of chain A of **_2KL8_**;
+    - Followed by a 20-residue segment of scaffold;
+    - Finally a 52-residue motif segment of chain A of **_2KL8_**.
+* **Redesigned positions:** This part indicates which positions to be redesigned in the **reference proteins**, e.g.`A3-5;A33;A36` in this case indicates residues 3, 4, 5, 33, and 36 of chain A in **_2KL8_**. Different redesigned positions are separated by **semi-colons**; if the positions are continuous, then connected by **hyphens**; always starts with an uppercase chain letter.
+* **Segment order**: The order of multiple motif segments in backbones. This may be used when each of the motif segments its own chain in the reference pdb file.
+
 
 ### Customize Methods for Structure Prediction
 
