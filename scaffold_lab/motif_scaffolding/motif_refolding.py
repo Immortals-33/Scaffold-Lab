@@ -746,117 +746,159 @@ class Evaluator:
         else:
             self.prefix = 'af2'
 
-    def run_evaluation(self):
 
-        # Merge results of different backbones
-        print("result dir, prefix:", self._result_dir, self.prefix)
-        results_df, pdb_count = au.csv_merge(
-            root_dir=self._result_dir,
-            prefix=self.prefix
-        )
-
-        summary_csv_path = os.path.join(self._result_dir, 'summary_results.csv')
-        complete_csv_path = os.path.join(self._result_dir, 'complete_results.csv')
-        results_df.to_csv(complete_csv_path, index=False)
+    def _process_results(self, prefix: str):
+        """Process results for a single folding method."""
+        results_df, pdb_count = au.csv_merge(root_dir=self._result_dir, prefix=prefix)
 
         # Analyze outputs
         complete_results, summary_results, designability_count, backbones = au.analyze_success_rate(
-            merged_data=complete_csv_path,
-            group_mode='all'
+            merged_data=results_df, group_mode="all", prefix=prefix
         )
-        self._log.info(f'Designable backbones for {self._result_dir}: {designability_count}.')
 
+        summary_csv_path = os.path.join(self._result_dir, f"{prefix}_summary_results.csv")
+        complete_csv_path = os.path.join(self._result_dir, f"{prefix}_complete_results.csv")
         complete_results.to_csv(complete_csv_path, index=False)
-        summary_column_order = ['sample_idx', 'Success','rmsd', 'motif_rmsd',
-            'length', 'sequence', 'sample_path', 'backbone_path']
+        summary_column_order = [
+            "sample_idx",
+            "Success",
+            "rmsd",
+            "motif_rmsd",
+            "length",
+            "sequence",
+            "sample_path",
+            "backbone_path",
+        ]
         summary_results.to_csv(summary_csv_path, columns=summary_column_order, index=False)
 
-        # Diversity Evaluation
-        successful_backbone_dir = os.path.join(self._result_dir, 'successful_backbones')
-        if not os.path.exists(successful_backbone_dir):
-            os.makedirs(successful_backbone_dir, exist_ok=False)
+        return complete_results, backbones, designability_count, pdb_count
+
+
+    def _evaluate_diversity(self, backbones: set, prefix: str):
+        """Run diversity evaluation."""
+        successful_backbone_dir = os.path.join(self._result_dir, f"{prefix}_successful_backbones")
+        os.makedirs(successful_backbone_dir, exist_ok=True)
+
         for pdb in backbones:
-            new_path = os.path.join(successful_backbone_dir, os.path.basename(pdb))
-            shutil.copy(pdb, new_path)
+            shutil.copy(pdb, os.path.join(successful_backbone_dir, os.path.basename(pdb)))
 
         diversity = du.foldseek_cluster(
             input=successful_backbone_dir,
             assist_protein_path=self._assist_protein_path,
             tmscore_threshold=0.5,
-            alignment_type= 1,
-            output_mode='DICT',
+            alignment_type=1,
+            output_mode="DICT",
             save_tmp=True,
-            foldseek_path=self._foldseek_path
+            foldseek_path=self._foldseek_path,
         )
-        self._log.info(f"Diversity Calculation for {self._result_dir} finished.\n\
-            Total designable backbones: {diversity['Samples']}\n\
-            Unique designable backbones: {diversity['Clusters']}\n\
-            Diversity: {diversity['Diversity']}")
+        self._log.info(
+            f"Diversity Calculation for {prefix} finished.\n"
+            f"Total designable backbones: {diversity['Samples']}\n"
+            f"Unique designable backbones: {diversity['Clusters']}\n"
+            f"Diversity: {diversity['Diversity']}"
+        )
 
-        diversity_result_path = os.path.join(successful_backbone_dir, 'diversity_cluster.tsv')
+        # Create unique designable backbone directory
+        diversity_result_path = os.path.join(successful_backbone_dir, "diversity_cluster.tsv")
+        unique_backbones_dir = os.path.join(self._result_dir, f"{prefix}_unique_designable_backbones")
+        os.makedirs(unique_backbones_dir, exist_ok=True)
+
         if os.path.exists(diversity_result_path):
-            with open (diversity_result_path, 'r') as f:
+            with open(diversity_result_path, "r") as f:
                 cluster_info = f.readlines()
-            cluster_info = [i.split('\t')[0] for i in cluster_info]
-            if 'assist_protein.pdb' in cluster_info:
-                cluster_info.remove('assist_protein.pdb')
+            cluster_info = [i.split("\t")[0] for i in cluster_info]
+            if "assist_protein.pdb" in cluster_info:
+                cluster_info.remove("assist_protein.pdb")
             unique_designable_backbones = set(cluster_info)
 
-            unique_designable_backbones_dir = os.path.join(self._result_dir, 'unique_designable_backbones')
-            if not os.path.exists(unique_designable_backbones_dir):
-                os.makedirs(unique_designable_backbones_dir, exist_ok=False)
             for pdb in unique_designable_backbones:
                 old_path = os.path.join(successful_backbone_dir, pdb)
-                shutil.copy(old_path, unique_designable_backbones_dir)
+                shutil.copy(old_path, unique_backbones_dir)
         else:
-            self._log.info('Diversity results not found. Please check if Foldseek clustered\
-                properly or there is no designable backbone presented.')
+            self._log.info(
+                f"Diversity results for {prefix} not found. Please check if Foldseek clustered properly or no designable backbones are present."
+            )
+
+        return diversity, successful_backbone_dir, unique_backbones_dir
 
 
-        # Novelty Evaluation
-        if len(os.listdir(successful_backbone_dir)) > 0:
-            success_results = complete_results[complete_results['Success'] == True]
+    def _evaluate_novelty(self, complete_results, successful_backbone_dir, prefix: str):
+        """Run novelty evaluation."""
+        if os.listdir(successful_backbone_dir):
+            success_results = complete_results[complete_results["Success"] == True]
             results_with_novelty = nu.calculate_novelty(
                 input_csv=success_results,
                 foldseek_database_path=self._eval_conf.foldseek_database,
                 max_workers=self._num_cpu_cores,
-                cpu_threshold=75.0
+                cpu_threshold=75.0,
             )
-            novelty_score = 1 - results_with_novelty['pdbTM'].median()
-            max_novelty = results_with_novelty['pdbTM'].min()
-            self._log.info(f'Novelty Calculation finished.\n\
-                Novelty score (1 - pdbTM) among successful backbones: {novelty_score:.3f}\n\
-                The most novel designable backbone has a pdbTM of {max_novelty:.3f}')
-            novelty_csv_path = os.path.join(self._result_dir, 'successful_novelty_results.csv')
+            novelty_score = 1 - results_with_novelty["pdbTM"].median()
+            max_novelty = results_with_novelty["pdbTM"].min()
+            self._log.info(
+                f"Novelty Calculation for {prefix} finished.\n"
+                f"Novelty score (1 - pdbTM) among successful backbones: {novelty_score:.3f}\n"
+                f"The most novel designable backbone has a pdbTM of {max_novelty:.3f}"
+            )
+            novelty_csv_path = os.path.join(self._result_dir, f"{prefix}_novelty_results.csv")
             results_with_novelty.to_csv(novelty_csv_path, index=False)
+            return novelty_score
         else:
-            self._log.info('No successful backbone was found. Pass novelty calculation.')
-            novelty_score = 'null'
+            self._log.info(f"No successful backbone was found for {prefix}. Skipping novelty calculation.")
+            return "null"
 
-        # Summary outputs
-        au.write_summary_results(
-            stored_path=self._result_dir,
-            pdb_count=pdb_count,
-            designable_count=designability_count,
-            diversity_result=diversity,
-            novelty_value=novelty_score)
-        # Visualization
-        if self._visualize and os.path.exists(diversity_result_path):
-            pu.plot_metrics_distribution(
-                input=os.path.join(self._result_dir, 'complete_results.csv'),
-                save_path=self._result_dir
+
+    def run_evaluation(self):
+        """Run evaluation for all specified folding methods."""
+        diversity_results = {}
+        novelty_results = {}
+        designability_counts = {}
+        pdb_counts = {}
+
+        for method in self.folding_method:
+            self._log.info(f"Processing results for folding method: {method}")
+            prefix = "esm" if method == "ESMFold" else "af2"
+
+            # Process results and calculate diversity and novelty
+            complete_results, backbones, designability_count, pdb_count = self._process_results(prefix)
+            diversity, successful_backbone_dir, unique_designable_backbone_dir = self._evaluate_diversity(backbones, prefix)
+            novelty_score = self._evaluate_novelty(complete_results, successful_backbone_dir, prefix)
+
+            # Collect results
+            diversity_results[prefix] = diversity
+            novelty_results[prefix] = novelty_score
+            designability_counts[prefix] = designability_count
+            pdb_counts[prefix] = pdb_count
+
+        # Write summary outputs
+        for prefix in diversity_results.keys():
+            au.write_summary_results(
+                stored_path=self._result_dir,
+                pdb_count=pdb_counts[prefix],
+                designable_count=designability_counts[prefix],
+                diversity_result=diversity_results[prefix],
+                novelty_value=novelty_results[prefix],
+                prefix=f'{prefix}'
+            )
+
+        # Optional visualization
+        if self._visualize:
+            for prefix in self.folding_method:
+                prefix = "esm" if method == "ESMFold" else "af2"
+                pu.plot_metrics_distribution(
+                    input=os.path.join(self._result_dir, f"{prefix}_complete_results.csv"),
+                    save_path=self._result_dir,
                 )
 
+                pymol_reference_pdb = os.path.join(self._motif_pdb)
 
-            # Pymol session files
-            reference_pdb = os.path.join(self._motif_pdb)
+                pu.motif_scaffolding_pymol_write(
+                    unique_designable_backbones=os.path.join(self._result_dir, f'{prefix}_unique_designable_backbones'),
+                    reference_pdb=pymol_reference_pdb,
+                    motif_json=os.path.join(self._result_dir, 'motif_info.json'),
+                    save_path=os.path.join(self._result_dir, f'{prefix}_pymol_session.pse')
+                    )   
 
-            pu.motif_scaffolding_pymol_write(
-                unique_designable_backbones=os.path.join(self._result_dir, 'unique_designable_backbones'),
-                reference_pdb=reference_pdb,
-                motif_json=os.path.join(self._result_dir, 'motif_info.json'),
-                save_path=os.path.join(self._result_dir, 'pymol_session.pse')
-                )        
+
 
 
 @hydra.main(version_base=None, config_path="../../config",

@@ -774,12 +774,33 @@ def csv_merge(
     return merged_data, file_count
 
 
-def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode="all"):
+def read_folding_method(
+    eval_data: Union[str, Path, pd.DataFrame],
+    prefix: str = 'esm'
+):
+    eval_results = pd.read_csv(eval_data) if isinstance(eval_data, str) or isinstance(eval_data, Path) else eval_data
+    
+    if prefix == 'esm' or prefix == 'af2':
+        return eval_results
+    elif prefix == 'joint':
+        esm_data = eval_results["folding_method"] == "ESMFold"
+        af2_data = eval_results["folding_method"] == "AlphaFold2"
+        return {'esm': esm_data, 'af2': af2_data}
+        
+
+def analyze_success_rate(
+        merged_data: Union[str, Path, pd.DataFrame], 
+        group_mode: str = "all",
+        prefix: str = "esm"
+    ):
+
     # Define success criteria for each sample
     merged_data = pd.read_csv(merged_data) if isinstance(merged_data, str) or isinstance(merged_data, Path) else merged_data
 
     #merged_data['backbone_success'] = (merged_data['rmsd'] < 2)
     #merged_data['motif_success'] = (merged_data['motif_rmsd'] < 1)
+
+
     merged_data['seq_hit'] = (merged_data['rmsd'] < 2) & (merged_data['motif_rmsd'] < 1)
     merged_data['seq_backbone_hit'] = (merged_data['rmsd'] < 2)
     merged_data['seq_motif_hit'] = (merged_data['motif_rmsd'] < 1)
@@ -818,6 +839,36 @@ def analyze_success_rate(merged_data: Union[str, Path, pd.DataFrame], group_mode
     #print(f'summary_data.columns: {set(summary_data.columns)}\nmerged_data.columns: {set(merged_data.columns)}\n')
 
     return merged_data, summary_data, success_count, successful_backbones
+
+
+def _process_results(self, prefix: str):
+    """Process results for a single folding method."""
+    results_df, pdb_count = csv_merge(root_dir=self._result_dir, prefix=prefix)
+
+    # Analyze outputs
+    complete_results, summary_results, designability_count, backbones = analyze_success_rate(
+        merged_data=results_df, group_mode="all", prefix=prefix
+    )
+
+    summary_csv_path = os.path.join(self._result_dir, f"{prefix}_summary_results.csv")
+    complete_csv_path = os.path.join(self._result_dir, f"{prefix}_complete_results.csv")
+    complete_results.to_csv(complete_csv_path, index=False)
+    summary_column_order = [
+        "sample_idx",
+        "Success",
+        "rmsd",
+        "motif_rmsd",
+        "length",
+        "sequence",
+        "sample_path",
+        "backbone_path",
+    ]
+    summary_results.to_csv(summary_csv_path, columns=summary_column_order, index=False)
+
+    return complete_results, backbones, designability_count, pdb_count
+
+
+
 
 
 def format_chain_positions(positions: List[str]) -> str:
@@ -902,13 +953,14 @@ def write_summary_results(
     designable_count: Union[int, float],
     diversity_result: Union[Dict, int, float],
     novelty_value: Union[int, float, str],
+    prefix: Optional[str] = None
 ) -> None:
 
     designable_fraction = f'{(designable_count / (pdb_count + 1e-6) * 100):.2f}'
     number_of_solutions = f'{diversity_result["Clusters"]}'
     novelty_value = f'{novelty_value:.2f}' if isinstance(novelty_value, (int or float)) else novelty_value
 
-    with open (os.path.join(stored_path, 'summary.txt'), 'w') as f:
+    with open (os.path.join(stored_path, f'{prefix}_summary.txt'), 'w') as f:
         f.write('-------------------Summary-------------------\n')
         f.write(f'The following are evaluation results for {os.path.abspath(stored_path)}:\n')
         f.write(f'Evaluated Protein: {os.path.basename(os.path.normpath(stored_path))}\n')
