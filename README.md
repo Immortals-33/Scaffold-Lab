@@ -149,6 +149,12 @@ This csv file has the following fields for each scaffold:
 * **Redesigned positions:** This part indicates which positions to be redesigned in the **reference proteins**, e.g.`A3-5;A33;A36` in this case indicates residues 3, 4, 5, 33, and 36 of chain A in **_2KL8_**. Different redesigned positions are separated by **semi-colons**; if the positions are continuous, then connected by **hyphens**; always starts with an uppercase chain letter.
 * **Segment order**: The order of multiple motif segments in backbones. This may be used when each of the motif segments its own chain in the reference pdb file.
 
+###   Specify through PDB Header
+
+The users can specify the contig string in the **“classification”** part of the PDB header. Here we have two ways for contig parsing:
+
+* **A complete contig string:** Should be followed the format mentioned above with two or three parts separated by commas. The native PDB ID and motif placement are always necessary, and the part of redesigned positions is additionally provided if there’s a need. 
+* For specification of redesigned positions, another straightforward way is to **index them by the “UNK” residues**. The logic here is, if the code found the contig string just have two parts, it will automatically look for “UNK” residues inside the PDB file and specify them as positions to be redesigned.
 
 ### Customize Methods for Structure Prediction
 
