@@ -484,7 +484,7 @@ def get_csv_data(
             sample_item['contig'].iloc[0],
             motif_mask,
             motif_indices,
-            sample_item['redesign_positions'].iloc[0] if 'redesign_positions' in sample_item.columns and not pd.isna(sample_item['redesign_positions'].iloc[0]) else None,
+            sample_item['redesign_positions'].iloc[0] if 'redesign_positions' in sample_item.columns and not pd.isna(sample_item['redesign_positions'].iloc[0]) else "",
             segments_order
         )
 
@@ -998,6 +998,7 @@ def parse_redesign_positions(positions: str) -> List[Tuple[str, int, int]]:
     Handles both single positions (e.g., 'A18') and ranges (e.g., 'A19-20').
     """
     parsed_positions = []
+    if len(positions) == 0: return parsed_positions
     for pos in positions.split(";"):
         chain = pos[0]
         if "-" in pos:
@@ -1126,6 +1127,8 @@ def quantize_redesign_positions(redesign_info: str) -> List[str]:
     For example, "A19-21;A23" becomes ["A19", "A20", "A21", "A23"].
     """
     redesign_list = []
+    if len(redesign_info) == 0: return redesign_list
+
     for segment in redesign_info.split(";"):
         chain = segment[0]
         if "-" in segment:
@@ -1155,7 +1158,6 @@ def modified_introduce_redesign_positions(
     # Parse the contig and redesign positions
     contig_segments = parse_contig_to_dict(contig)
     redesign_list = quantize_redesign_positions(redesign_positions)
-    print(f"contig segments: {contig_segments}, redesign_list: {redesign_list}")
 
     # Build a dictionary mapping native positions to motif indices
     native_to_index = {}

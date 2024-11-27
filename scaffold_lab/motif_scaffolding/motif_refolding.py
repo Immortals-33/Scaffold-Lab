@@ -45,6 +45,7 @@ rootutils.set_root(
     cwd=True, # change current working directory to the root directory (helps with filepaths)
 )
 
+import scaffold_lab
 from analysis import utils as au
 from data import structure_utils as su
 from analysis import diversity as du
@@ -77,6 +78,7 @@ class Refolder:
 
         OmegaConf.set_struct(conf, False)
 
+        self._package_dir = "/".join(scaffold_lab.__path__._path[0].split("/")[:-1])
         self._conf = conf
         self._infer_conf = conf.inference
         self._sample_conf = self._infer_conf.samples
@@ -119,7 +121,7 @@ class Refolder:
 
         self._output_dir = output_dir
         os.makedirs(self._output_dir, exist_ok=True)
-        self._pmpnn_dir = self._infer_conf.pmpnn_dir
+        self._pmpnn_dir = os.path.join(self._package_dir, self._infer_conf.pmpnn_dir)
         self._sample_dir = self._infer_conf.backbone_pdb_dir
         self._CA_only = self._infer_conf.CA_only
         self._hide_GPU_from_pmpnn = self._infer_conf.hide_GPU_from_pmpnn
@@ -243,17 +245,16 @@ class Refolder:
 
 
             # Handle redesigned positions
-            if redesign_info is not None:
-                self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
-                fixed_idx_for_mpnn = au.modified_introduce_redesign_positions(motif_indices, redesign_info, contig)
+            self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
+            fixed_idx_for_mpnn = au.modified_introduce_redesign_positions(motif_indices, redesign_info, contig)
 
-                # Check information for redesign positions
-                au.check_motif_positions(
-                    motif_pdb_path=reference_pdb,
-                    reference_contig=contig,
-                    segment_order=segments_order,
-                    redesign_positions=redesign_info
-                )
+            # Check information for redesign positions
+            au.check_motif_positions(
+                motif_pdb_path=reference_pdb,
+                reference_contig=contig,
+                segment_order=segments_order,
+                redesign_positions=redesign_info
+            )
 
 
             # Extract motif and calculate backbone motif-RMSD, which is the `backbone_motif_rmsd` metric in outputs.
