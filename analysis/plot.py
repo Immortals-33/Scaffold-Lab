@@ -113,6 +113,7 @@ def plot_metrics_distribution(
     input: Union[str, Path, pd.DataFrame],
     save_path: Union[str, Path],
     save_mode: Literal['png', 'pdf', 'svg'] = 'png',
+    prefix: Literal['esm', 'af2'] = 'af2',
     dpi: Union[int, float] = 800
     ) -> str:
     results = pd.read_csv(input) if isinstance(input, (str or Path)) else input
@@ -168,6 +169,6 @@ def plot_metrics_distribution(
     ax_main.axvline(1.0, color='#0888B5', linestyle="--", linewidth=2)
 
     #plt.show()
-    plt.savefig(os.path.join(save_path, f'metric_distribution.{save_mode}'), dpi=dpi)
+    plt.savefig(os.path.join(save_path, f'{prefix}_metric_distribution.{save_mode}'), dpi=dpi)
     
     #return mean_seq_hit
