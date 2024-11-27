@@ -878,16 +878,18 @@ class Evaluator:
                 designable_count=designability_counts[prefix],
                 diversity_result=diversity_results[prefix],
                 novelty_value=novelty_results[prefix],
-                prefix=f'{prefix}'
+                prefix=prefix
             )
 
         # Optional visualization
         if self._visualize:
-            for prefix in self.folding_method:
+            for method in self.folding_method:
+                self._log.info(f"Performing visualization for {method}.")
                 prefix = "esm" if method == "ESMFold" else "af2"
                 pu.plot_metrics_distribution(
                     input=os.path.join(self._result_dir, f"{prefix}_complete_results.csv"),
                     save_path=self._result_dir,
+                    prefix=prefix
                 )
 
                 pymol_reference_pdb = os.path.join(self._motif_pdb)
