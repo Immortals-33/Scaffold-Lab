@@ -65,18 +65,23 @@ def motif_scaffolding_pymol_write(
     cmd.color(native_motif_color,"native_motif")
     cmd.show("sticks","native_motif")
     
-    for i in os.listdir(unique_designable_backbones):
+    pdb_paths = [path for path in os.listdir(unique_designable_backbones) if
+            path.endswith(".pdb")]
+    if len(pdb_paths) == 0:
+        cmd.save(save_path)
+        return
+    
+    for i in pdb_paths:
         print(i)
-        if i.endswith(".pdb"):
-            name = i.split(".")[0]
-            cmd.load(f"{unique_designable_backbones}/{i}",name)
-            cmd.color(design_scaffold_color,name)
-            motif_residue = design_name_motif[name]
-            cmd.select(f"{name}_motif","resi "+"+".join([str(i) for i in motif_residue])+" and "+name)
-            cmd.color(design_motif_color,f"{name}_motif")
-            cmd.show("sticks",f"{name}_motif")
-            # align the motif
-            cmd.align(f"{name}","native_motif")
+        name = i.split(".")[0]
+        cmd.load(f"{unique_designable_backbones}/{i}",name)
+        cmd.color(design_scaffold_color,name)
+        motif_residue = design_name_motif[name]
+        cmd.select(f"{name}_motif","resi "+"+".join([str(i) for i in motif_residue])+" and "+name)
+        cmd.color(design_motif_color,f"{name}_motif")
+        cmd.show("sticks",f"{name}_motif")
+        # align the motif
+        cmd.align(f"{name}","native_motif")
 
     cmd.bg_color('white')
     # set grid_mode to 1

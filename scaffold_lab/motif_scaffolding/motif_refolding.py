@@ -726,7 +726,8 @@ class Evaluator:
 
         self._foldseek_path = self._eval_conf.foldseek_path
         self._foldseek_database = self._eval_conf.foldseek_database
-        self._assist_protein_path = self._eval_conf.assist_protein
+        self._package_dir = "/".join(scaffold_lab.__path__._path[0].split("/")[:-1])
+        self._assist_protein_path = os.path.join(self._package_dir, self._eval_conf.assist_protein)
         self._visualize = self._eval_conf.visualize
 
         self.folding_method = self._infer_conf.predict_method
