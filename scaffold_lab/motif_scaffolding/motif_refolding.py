@@ -194,6 +194,7 @@ class Refolder:
                     reference_pdb = self._motif_pdb
                     rename_design_pdb = os.path.join(self._sample_dir, f"{backbone_name}_{naming_number}.pdb")
                     shutil.copy2(design_pdb, rename_design_pdb)
+                    design_pdb = rename_design_pdb
                     naming_number += 1
 
 
@@ -245,15 +246,33 @@ class Refolder:
             # Handle redesigned positions
             if redesign_info is not None:
                 self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
-                fixed_idx_for_mpnn = au.modified_introduce_redesign_positions(motif_indices, redesign_info, contig)
+                redesign_mapping_dict, redesign_position_list, fixed_idx_for_mpnn = au.modified_introduce_redesign_positions(
+                    motif_indices, 
+                    redesign_info, 
+                    contig
+                    )
+                
+
+                if self._infer_conf.force_motif_AA_type:
+                    modified_design_pdb_path = os.path.join(self._sample_dir, f"modified_{backbone_name}_{sample_num}.pdb")
+                    motif_AA_correct = au.check_motif_AA_type(
+                        design_file=design_pdb,
+                        reference_file=reference_pdb,
+                        position_mapping=redesign_mapping_dict,
+                        redesign_list=redesign_position_list,
+                        output_file=modified_design_pdb_path
+                    )
+                    if motif_AA_correct == False:
+                        design_pdb = modified_design_pdb_path
+
 
                 # Check information for redesign positions
-                au.check_motif_positions(
-                    motif_pdb_path=reference_pdb,
-                    reference_contig=contig,
-                    segment_order=segments_order,
-                    redesign_positions=redesign_info
-                )
+                #au.check_motif_positions(
+                #    motif_pdb_path=reference_pdb,
+                #    reference_contig=contig,
+                #    segment_order=segments_order,
+                #    redesign_positions=redesign_info
+                #)
 
 
             # Extract motif and calculate backbone motif-RMSD, which is the `backbone_motif_rmsd` metric in outputs.

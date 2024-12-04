@@ -18,6 +18,7 @@ inference:
   # Setting of ProteinMPNN
   CA_only: True
   hide_GPU_from_pmpnn: True
+  force_motif_AA_type: False
 
   samples:
     # Max backbones to evaluate and incorporate into results
