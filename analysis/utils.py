@@ -1195,17 +1195,38 @@ def modified_introduce_redesign_positions(
 
 
 def check_motif_AA_type(
-    design_file: Union[str, Path, biotite.structure.AtomArray],
-    reference_file: Union[str, Path, biotite.structure.AtomArray],
+    design_file: Union[str, Path],
+    reference_file: Union[str, Path],
     position_mapping: Dict,
     redesign_list: List,
     output_file: Union[str, Path, biotite.structure.AtomArray]
 ) -> bool:
+    """
+    Check if dummy residues placed within motifs and replace them according to positions to be redesigned.
+
+    Args:
+      design_file: Designed backbone to be checked.
+      reference_file: Motif PDB Files. 
+       - If using motif contig, this should be cleaned pure motif pdb file.
+       - If using native contig, this should be native pdb file.
+      position_mapping: A dictionary mapping motifs positions between reference structure and designed structure
+       - e.g. # {"A92": 12, "A93": 13, ......}, where key = positions in native one and value = positions in designed one
+       - !Note that we pre-assume that all positions in designed proteins only possessed chain A for now.
+       - Complex systems should be handled in a future version.
+      redesign_list: A list containing positions to be redesigned in designed structure. 
+       Only residues fixed (supplementary set of redesigned positions) would be changed according to reference motif.
+      output_file: File to be written. If all residues consistent with reference ones, no output file will be created.
+       - If file needs to be output, it will overwrite original file in evaluation directory
+       - The original structure with dummy residues will be copied into another sub directory called `original_pdb`
     
-    #design_array = strucio.load_structure(design_file) if isinstance(design_file, str | Path) else design_array
-    #design_ca_array = design_array[(design_array.atom_name=="CA")]
-    design_pdb = strucio.pdb.PDBFile.read(design_file)
-    design_array = design_pdb.get_structure()[0] # Get first AtomArray
+    Return:
+      A bool value indicating whether are motif AA types are correct. 
+
+    Usage: Set `inference.force_motif_AA_type` to be "True".
+    """
+    
+    design_pdb = strucio.pdb.PDBFile.read(design_file) # AtomArrayStack
+    design_array = design_pdb.get_structure()[0] # We assume to take only one model, Get first AtomArray from AtomArrayStack
 
     reference_pdb = strucio.pdb.PDBFile.read(reference_file)
     reference_array = reference_pdb.get_structure()[0]
@@ -1224,9 +1245,9 @@ def check_motif_AA_type(
             if design_aa.res_name[0] != ref_aa.res_name[0]:
                 incompatible_list.append(design_idx)
     
-    # Change Amino acid types
+    # Change Amino acid types if uncorrect ones exist
     if len(incompatible_list) > 0:
-        log.warning(f"Residues [{incompatible_list}] in designed backbone not consistent to standard motifs, changed accordingly.")
+        log.warning(f"Residues {incompatible_list} in designed backbone not consistent to standard motifs, changed accordingly.")
         for ref_position, design_idx in position_mapping.items():
             if ref_position not in redesign_list:
                 ref_chain_id = ref_position[0]
