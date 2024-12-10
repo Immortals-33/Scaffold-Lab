@@ -1041,11 +1041,8 @@ def check_motif_positions(
 ):
     # Parse contig and redesign positions
     contig_segments = parse_contig(reference_contig)
-    redesign_segments = parse_redesign_positions(redesign_positions)
+    redesign_segments = parse_redesign_positions(redesign_positions) 
     segment_order_list = segment_order.split(";")
-    print(f"contig segments: {contig_segments}")
-    print(f"redesign segments: {redesign_segments}")
-    print(f"segment_order list: {segment_order_list}")
 
     # Build a mapping of segment names (A, B, etc.) to contig segments
     motif_mapping = {}
@@ -1054,7 +1051,6 @@ def check_motif_positions(
     for segment in contig_segments:
         if segment[0] != "scaffold":  # Motif segment
             chain, start, end = segment
-            print(f"segment: {segment}")
             segment_name = segment_order_list[motif_index]
             motif_mapping[segment_name] = (chain, start, end)
             motif_index += 1
@@ -1083,7 +1079,6 @@ def check_motif_positions(
     # Check whether positions not allowed to be redesigned contained within the provided list of redesign positions 
     # i.e. The complementary set of {motif_positions} and {redesign_positions}
     non_redesign_segments = get_non_redesign_positions(contig_segments, redesign_segments)
-    print(f"non redesign segments: {non_redesign_segments}")
     for chain, pos in non_redesign_segments:
         for segment_name, (motif_chain, motif_start, motif_end) in motif_mapping.items():
             if chain == motif_chain and motif_start <= pos <= motif_end:
@@ -1143,7 +1138,7 @@ def modified_introduce_redesign_positions(
     motif_indices: List[int],
     redesign_positions: str,
     contig: str
-) -> List[int]:
+) -> Tuple[Dict, List[str], List[int]]:
     """
     Adjust motif indices to exclude redesign positions based on native redesign positions.
 
@@ -1167,23 +1162,100 @@ def modified_introduce_redesign_positions(
         if segment['chain'] == "scaffold":
             continue  # Skip scaffold segments
 
-        chain = segment["chain"]
-        start = segment["start"]
-        end = segment["end"]
+        chain = segment["chain"] # A
+        start = segment["start"] # 92
+        end = segment["end"] # 99
 
         # Iterate over each native position and map it to the corresponding motif index
         for native_pos in range(start, end + 1):
-            native_key = f"{chain}{native_pos}"
+            native_key = f"{chain}{native_pos}" # A92
             if index_pointer < len(motif_indices):
-                native_to_index[native_key] = motif_indices[index_pointer]
+                native_to_index[native_key] = motif_indices[index_pointer] # {"A92": 12, "A93": 13, "A"}
                 index_pointer += 1
             else:
                 break
+
+    print(f"native to index: {native_to_index}")
 
     # Filter out the redesign positions from the mapping
     updated_indices = [
         index for native_key, index in native_to_index.items()
         if native_key not in redesign_list
     ]
+    #print(f"motif indices: {motif_indices}")
+    #print(f"redesign positions: {redesign_positions}")
+    #print(f"contig: {contig}")
+    #print(f"updated indices: {updated_indices}")
 
-    return updated_indices
+    return (native_to_index, redesign_list, updated_indices)
+
+
+def check_motif_AA_type(
+    design_file: Union[str, Path],
+    reference_file: Union[str, Path],
+    position_mapping: Dict,
+    redesign_list: List,
+    output_file: Union[str, Path, biotite.structure.AtomArray]
+) -> bool:
+    """
+    Check if dummy residues placed within motifs and replace them according to positions to be redesigned.
+
+    Args:
+      design_file: Designed backbone to be checked.
+      reference_file: Motif PDB Files. 
+       - If using motif contig, this should be cleaned pure motif pdb file.
+       - If using native contig, this should be native pdb file.
+      position_mapping: A dictionary mapping motifs positions between reference structure and designed structure
+       - e.g. # {"A92": 12, "A93": 13, ......}, where key = positions in native one and value = positions in designed one
+       - !Note that we pre-assume that all positions in designed proteins only possessed chain A for now.
+       - Complex systems should be handled in a future version.
+      redesign_list: A list containing positions to be redesigned in designed structure. 
+       Only residues fixed (supplementary set of redesigned positions) would be changed according to reference motif.
+      output_file: File to be written. If all residues consistent with reference ones, no output file will be created.
+       - If file needs to be output, it will overwrite original file in evaluation directory
+       - The original structure with dummy residues will be copied into another sub directory called `original_pdb`
+    
+    Return:
+      A bool value indicating whether are motif AA types are correct. 
+
+    Usage: Set `inference.force_motif_AA_type` to be "True".
+    """
+    
+    design_pdb = strucio.pdb.PDBFile.read(design_file) # AtomArrayStack
+    design_array = design_pdb.get_structure()[0] # We assume to take only one model, Get first AtomArray from AtomArrayStack
+
+    reference_pdb = strucio.pdb.PDBFile.read(reference_file)
+    reference_array = reference_pdb.get_structure()[0]
+    
+    # Check if all fixed positions have correct amino acid types
+    incompatible_list = []
+    for ref_position, design_idx in position_mapping.items():
+        if ref_position not in redesign_list:
+            assert ref_position[0].isalpha(), f"Reference position {ref_position} does not have chain identity!"
+            ref_chain_id = ref_position[0]
+            ref_idx = int(ref_position[1:])
+            
+            ref_aa = reference_array[(reference_array.chain_id==ref_chain_id) & (reference_array.res_id==ref_idx)]
+            design_aa = design_array[(design_array.chain_id=="A") & (design_array.res_id==design_idx)] # We consider designed backbones as monomers for now
+            
+            if design_aa.res_name[0] != ref_aa.res_name[0]:
+                incompatible_list.append(design_idx)
+    
+    # Change Amino acid types if uncorrect ones exist
+    if len(incompatible_list) > 0:
+        log.warning(f"Residues {incompatible_list} in designed backbone not consistent to standard motifs, changed accordingly.")
+        for ref_position, design_idx in position_mapping.items():
+            if ref_position not in redesign_list:
+                ref_chain_id = ref_position[0]
+                ref_idx = int(ref_position[1:])
+                
+                ref_aa = reference_array[(reference_array.chain_id==ref_chain_id) & (reference_array.res_id==ref_idx)]
+                design_array.res_name[(design_array.chain_id=="A") & (design_array.res_id==design_idx)] = ref_aa.res_name[0]
+            
+        modified_file = strucio.pdb.PDBFile()
+        modified_file.set_structure(design_array)
+        modified_file.write(output_file)
+        log.info(f"Overwritten residue types of fixed motif residues into {output_file}, would be used as input for sequence design.")
+        return False
+    else:
+        return True

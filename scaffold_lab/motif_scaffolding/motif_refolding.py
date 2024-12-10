@@ -194,8 +194,9 @@ class Refolder:
                         else:
                             raise ValueError(f"No benchmark case detected in {all_name}. Try to reformat.")
                     reference_pdb = self._motif_pdb
-                    rename_design_pdb = os.path.join(self._sample_dir, f"{backbone_name}_{naming_number}.pdb")
+                    rename_design_pdb = os.path.join(self._output_dir, f"{backbone_name}_{naming_number}.pdb")
                     shutil.copy2(design_pdb, rename_design_pdb)
+                    design_pdb = rename_design_pdb
                     naming_number += 1
 
 
@@ -242,20 +243,52 @@ class Refolder:
                 "motif_idx": motif_indices,
                 "redesign_info": redesign_info
             }
+            
+            # Save outputs
+            backbone_dir = os.path.join(self._output_dir, f'{backbone_name}_{sample_num}')
+            if os.path.exists(backbone_dir):
+                self._log.warning(f'Backbone {backbone_name}_{sample_num} already existed, pass then.')
+                continue
 
+            os.makedirs(backbone_dir, exist_ok=True)
+            self._log.info(f'Running self-consistency on {backbone_name}, '
+                    f'sample {sample_num}')
+            shutil.copy2(os.path.join(self._sample_dir, pdb_file), backbone_dir)
+            print(f'copied {pdb_file} to {backbone_dir}')
 
+            
             # Handle redesigned positions
             self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
-            fixed_idx_for_mpnn = au.modified_introduce_redesign_positions(motif_indices, redesign_info, contig)
+            _, _, fixed_idx_for_mpnn = au.modified_introduce_redesign_positions(motif_indices, redesign_info, contig)
 
-            # Check information for redesign positions
-            au.check_motif_positions(
-                motif_pdb_path=reference_pdb,
-                reference_contig=contig,
-                segment_order=segments_order,
-                redesign_positions=redesign_info
-            )
+            if redesign_info is not None:
+                self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
+                redesign_mapping_dict, redesign_position_list, fixed_idx_for_mpnn = au.modified_introduce_redesign_positions(
+                    motif_indices, 
+                    redesign_info, 
+                    contig
+                    )
+                
 
+                if self._infer_conf.force_motif_AA_type:
+                    modified_design_pdb_path = os.path.join(backbone_dir, f"{backbone_name}_{sample_num}.pdb")
+                    
+                    # This will overwrite original protein if AA types of motifs are not all correct.
+                    # The original pdb will be copied to another directory named "original_pdb" as a reference.
+                    motif_AA_correct = au.check_motif_AA_type(
+                        design_file=design_pdb,
+                        reference_file=reference_pdb,
+                        position_mapping=redesign_mapping_dict,
+                        redesign_list=redesign_position_list,
+                        output_file=modified_design_pdb_path
+                    )
+                    if motif_AA_correct == False:
+                        original_pdb_dir = os.path.join(backbone_dir, "original_pdb")
+                        os.makedirs(original_pdb_dir, exist_ok=True)
+                        shutil.copy2(design_pdb, original_pdb_dir)
+                        self._log.info(f"Copied original PDB to {original_pdb_dir} as reference.")
+                        design_pdb = modified_design_pdb_path
+                        
 
             # Extract motif and calculate backbone motif-RMSD, which is the `backbone_motif_rmsd` metric in outputs.
             # !!Note: This `rms` is the motif-RMSD between native motif and initially-generated backbone,
@@ -272,20 +305,11 @@ class Refolder:
             reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
 
 
-            # Save outputs
-            backbone_dir = os.path.join(self._output_dir, f'{backbone_name}_{sample_num}')
-            if os.path.exists(backbone_dir):
-                self._log.warning(f'Backbone {backbone_name}_{sample_num} already existed, pass then.')
-                continue
+            if self._infer_conf.force_motif_AA_type and motif_AA_correct == False:
+                pdb_path = modified_design_pdb_path
+            else:
+                pdb_path = os.path.join(backbone_dir, pdb_file)
 
-            os.makedirs(backbone_dir, exist_ok=True)
-            self._log.info(f'Running self-consistency on {backbone_name}, '
-                    f'sample {sample_num}')
-            shutil.copy2(os.path.join(self._sample_dir, pdb_file), backbone_dir)
-            print(f'copied {pdb_file} to {backbone_dir}')
-
-            #separate_pdb_folder = os.path.join(backbone_dir, backbone_name)
-            pdb_path = os.path.join(backbone_dir, pdb_file)
             sc_output_dir = os.path.join(backbone_dir, 'self_consistency')
             os.makedirs(sc_output_dir, exist_ok=True)
             shutil.copy(pdb_path, os.path.join(
