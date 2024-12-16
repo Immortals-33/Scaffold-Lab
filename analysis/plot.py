@@ -1,10 +1,11 @@
 import os
 import json
+import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Literal
 from pathlib import Path
 from scipy.stats import gaussian_kde
 from pymol import cmd
@@ -86,21 +87,12 @@ def motif_scaffolding_pymol_write(
     cmd.save(save_path)
 
 
-import os
-import numpy as np
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import pandas as pd
-from typing import *
-from pathlib import Path
-from scipy.stats import gaussian_kde
-
-#plt.rcParams['font.sans-serif'] = 'Arial'
-#plt.rcParams['font.family'] = 'Arial'
-#mpl.rcParams['lines.linewidth'] = 1
-
-
-def truncate_colormap(cmap, min_val=0.0, max_val=1.0, n=100):
+def truncate_colormap(
+    cmap: List, 
+    min_val: float = 0.0, 
+    max_val: float = 1.0, 
+    n=100
+    ) -> mpl.colors.LinearSegmentedColormap:
     """ Truncate a colormap to use a fraction of it. """
     new_cmap = mpl.colors.LinearSegmentedColormap.from_list(
         f'trunc({cmap.name},{min_val:.2f},{max_val:.2f})',
@@ -113,9 +105,10 @@ def plot_metrics_distribution(
     input: Union[str, Path, pd.DataFrame],
     save_path: Union[str, Path],
     save_mode: Literal['png', 'pdf', 'svg'] = 'png',
-    prefix: Literal['esm', 'af2'] = 'af2',
+    prefix: Literal['esm', 'af2'] = 'esm',
     dpi: Union[int, float] = 800
-    ) -> str:
+    ) -> None:
+
     results = pd.read_csv(input) if isinstance(input, (str or Path)) else input
     
     # Calculate sequence hit
@@ -172,3 +165,42 @@ def plot_metrics_distribution(
     plt.savefig(os.path.join(save_path, f'{prefix}_metric_distribution.{save_mode}'), dpi=dpi)
     
     #return mean_seq_hit
+
+
+@mpl.rc_context({'lines.linewidth': 1, 'font.family': 'Arial', 'font.sans-serif': 'Arial'})
+def plot_novelty_distribution(
+    input: Union[str, Path, pd.DataFrame],
+    save_path: Union[str, Path],
+    save_mode: Literal['png', 'pdf', 'svg'] = 'png',
+    prefix: Literal['esm', 'af2'] = 'esm',
+    dpi: Union[int, float] = 800
+    ) -> str:
+
+    results = pd.read_csv(input) if isinstance(input, (str or Path)) else input
+
+    fig, ax_main = plt.subplots(figsize=(10, 6))
+    
+    ax_main.set_xlabel('Novelty (pdbTM) Among Successful Scaffolds', fontweight='bold', fontsize=16, labelpad=15)
+    ax_main.hist(results['pdbTM'], color='#95C991', alpha=0.6, density=True, edgecolor='black')
+    novelty_kde = gaussian_kde(results['pdbTM'])
+    x_novelty = np.linspace(results['pdbTM'].min(), results['pdbTM'].max(), 100)
+    ax_main.fill_between(x_novelty, novelty_kde(x_novelty), color='#95C991', lw=1.5, alpha=0.3)
+    ax_main.spines['top'].set_visible(False)
+    ax_main.spines['right'].set_visible(False)
+    ax_main.get_yaxis().set_visible(False)
+    ax_main.set_yticks([])
+    
+    novelty = results['pdbTM'].unique()
+    quartile_to_calculate = [0.25, 0.5, 0.75]
+    quartile_results = {}
+    for val in quartile_to_calculate:
+        quartile_results[val] = round(np.quantile(novelty, val), 3)
+    
+    for _, vals in quartile_results.items():
+        ax_main.axvline(vals, color='#BC94C2', linestyle="--", linewidth=2)
+    xticks_positions = sorted([results['pdbTM'].min(), results['pdbTM'].max()] + list(quartile_results.values()))
+    ax_main.set_xticks(xticks_positions)
+    ax_main.set_xticklabels([f"{tick:.3f}" for tick in xticks_positions],
+                             fontsize=12, fontweight="bold")
+
+    plt.savefig(os.path.join(save_path, f'{prefix}_novelty_distribution.{save_mode}'), dpi=dpi)

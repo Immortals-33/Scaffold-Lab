@@ -103,7 +103,7 @@ class Refolder:
             self.device = 'cpu'
         self._log.info(f'Using device: {self.device}')
 
-        warnings.filterwarnings("ignore", module="biotite.*|psutil.*", category=UserWarning)
+        warnings.filterwarnings("ignore", module="biotite.*|psutil.*|matplotlib.*", category=UserWarning)
 
         # Customizing different structure prediction methods
         self._forward_folding = self._infer_conf.predict_method
@@ -882,7 +882,7 @@ class Evaluator:
                 f"Novelty score (1 - pdbTM) among successful backbones: {novelty_score:.3f}\n"
                 f"The most novel designable backbone has a pdbTM of {max_novelty:.3f}"
             )
-            novelty_csv_path = os.path.join(self._result_dir, f"{prefix}_novelty_results.csv")
+            novelty_csv_path = os.path.join(self._result_dir, f"{prefix}_success_novelty_results.csv") # Overwrite complete results
             results_with_novelty.to_csv(novelty_csv_path, index=False)
             return novelty_score
         else:
@@ -933,6 +933,13 @@ class Evaluator:
                     save_path=self._result_dir,
                     prefix=prefix
                 )
+
+                if len(os.listdir(successful_backbone_dir)) >= 5:
+                    pu.plot_novelty_distribution(
+                        input=os.path.join(self._result_dir, f"{prefix}_success_novelty_results.csv"),
+                        save_path=self._results_dir,
+                        prefix=prefix
+                    )
 
                 pymol_reference_pdb = os.path.join(self._motif_pdb)
 
