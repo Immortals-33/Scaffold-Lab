@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -9,6 +10,8 @@ from typing import List, Union, Optional, Literal
 from pathlib import Path
 from scipy.stats import gaussian_kde
 from pymol import cmd
+
+log = logging.getLogger(__name__)
 
 plt.rcParams['font.sans-serif'] = 'Arial'
 plt.rcParams['font.family'] = 'Arial'
@@ -65,25 +68,30 @@ def motif_scaffolding_pymol_write(
     # color the native motif of PDB
     cmd.color(native_motif_color,"native_motif")
     cmd.show("sticks","native_motif")
-    
-    for i in os.listdir(unique_designable_backbones):
-        print(i)
-        if i.endswith(".pdb"):
-            name = i.split(".")[0]
-            cmd.load(f"{unique_designable_backbones}/{i}",name)
-            cmd.color(design_scaffold_color,name)
-            motif_residue = design_name_motif[name]
-            cmd.select(f"{name}_motif","resi "+"+".join([str(i) for i in motif_residue])+" and "+name)
-            cmd.color(design_motif_color,f"{name}_motif")
-            cmd.show("sticks",f"{name}_motif")
-            # align the motif
-            cmd.align(f"{name}","native_motif")
 
-    cmd.bg_color('white')
-    # set grid_mode to 1
-    cmd.set("grid_mode",1)
-    # zoom on the {name}
-    cmd.zoom(f"{name}")
+    if os.listdir(unique_designable_backbones):
+    
+        for i in os.listdir(unique_designable_backbones):
+            print(i)
+            if i.endswith(".pdb"):
+                name = i.split(".")[0]
+                cmd.load(f"{unique_designable_backbones}/{i}",name)
+                cmd.color(design_scaffold_color,name)
+                motif_residue = design_name_motif[name]
+                cmd.select(f"{name}_motif","resi "+"+".join([str(i) for i in motif_residue])+" and "+name)
+                cmd.color(design_motif_color,f"{name}_motif")
+                cmd.show("sticks",f"{name}_motif")
+                # align the motif
+                cmd.align(f"{name}","native_motif")
+
+        cmd.bg_color('white')
+        cmd.set("grid_mode",1)
+        cmd.set('ray_trace_mode', 1)
+        cmd.set('ambient', 0.5)
+
+        cmd.zoom(f"{name}")
+    else:
+        log.info(f"No successful backbones detected in {unique_designable_backbones}, Only motif structure will be saved.")
     cmd.save(save_path)
 
 

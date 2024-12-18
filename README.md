@@ -2,6 +2,8 @@
 
 ***
 
+[![Paper](https://img.shields.io/badge/paper-biorxiv.2024.02.10.579743-F0A145)](https://www.biorxiv.org/content/10.1101/2024.02.10.579743v3)
+
 Official implementation for [**_Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework_**](https://www.biorxiv.org/content/10.1101/2024.02.10.579743v3). 
 
 
@@ -37,12 +39,10 @@ We present the benchmark for both unconditional generation and conditional gener
 
 > [!NOTE]  
 >
-> This is a **beta** version which has not been tested thoroughly. Bug reports and pull requests are especially welcomed. 
+> You can also try our notebook in Colab. This is a **beta** version where bug reports and pull requests are especially welcomed. 
 > 
-> You can also try our notebook in colab:
->
 > [<img src="https://colab.research.google.com/assets/colab-badge.svg">](https://colab.research.google.com/github/Immortals-33/Scaffold-Lab/blob/main/scaffold_lab.ipynb)
-> 
+>
 ***
 
 
@@ -64,6 +64,9 @@ We present the benchmark for both unconditional generation and conditional gener
 ***
 
 ## Installation
+
+<details>
+    <summary>Expand<summary>
 
 We recommend using [Conda](https://anaconda.org/anaconda/conda) to set up dependencies. To quickly set up an environment, just simply run:
 
@@ -95,6 +98,9 @@ After successfully building a PDB database of Foldseek, you can save the `<folds
 
 ## Outline
 
+<details>
+    <summary>Expand<summary>
+
 Here is a guide about how you can go through this repository. We aim to provide an easy-to-use evaluation pipeline as well as maximize the utility of individual scripts. Let's go through the structure of this repository as a start:
 
 * `scaffold_lab`: This is the main directory to run different evaluations described in our paper.
@@ -109,6 +115,10 @@ Here is a guide about how you can go through this repository. We aim to provide 
 
 
 ## Usage
+
+<details>
+    <summary>Expand<summary>
+
 ### Unconditional Generation
 
 Let's start by running a simple evaluation here: 
@@ -169,6 +179,9 @@ Scaffold-Lab performs evaluation using **ESMFold** by default. Once you set up t
 
 
 #### AlphaFold2 (single-chain version)
+
+<details>
+    <summary>Expand<summary>
 
 The implementation of **AlphaFold2** is based on [LocalColabFold](https://github.com/YoshitakaMo/localcolabfold), which is a local version of [ColabFold](https://github.com/sokrypton/ColabFold). We provide a brief guideline for enabling using AlphaFold2 during evaluation:
 
