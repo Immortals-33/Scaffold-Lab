@@ -1,4 +1,4 @@
-# Scaffold-Lab: A Unified Framework for Evaluating Protein Backbone Generation Methods
+# Scaffold-Lab
 
 ***
 
@@ -66,7 +66,9 @@ We present the benchmark for both unconditional generation and conditional gener
 ## Installation
 
 <details>
-    <summary>Expand<summary>
+  <summary>Expand</summary>
+
+
 
 We recommend using [Conda](https://anaconda.org/anaconda/conda) to set up dependencies. To quickly set up an environment, just simply run:
 
@@ -94,12 +96,11 @@ foldseek databases PDB pdb tmp
 
 After successfully building a PDB database of Foldseek, you can save the `<foldseek_pdb_database_path>` as a record and lately specify it your foldseek database path either using config or directly by command-line usage, whose demo is provided below. 
 
+</details>
+
 ***
 
 ## Outline
-
-<details>
-    <summary>Expand<summary>
 
 Here is a guide about how you can go through this repository. We aim to provide an easy-to-use evaluation pipeline as well as maximize the utility of individual scripts. Let's go through the structure of this repository as a start:
 
