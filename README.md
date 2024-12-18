@@ -123,7 +123,7 @@ Here is a guide about how you can go through this repository. We aim to provide 
 ## Usage
 
 <details>
-    <summary>Expand<summary>
+    <summary>Expand</summary>
 
 ### Unconditional Generation
 
@@ -187,7 +187,7 @@ Scaffold-Lab performs evaluation using **ESMFold** by default. Once you set up t
 #### AlphaFold2 (single-chain version)
 
 <details>
-    <summary>Expand<summary>
+    <summary>Expand</summary>
 
 The implementation of **AlphaFold2** is based on [LocalColabFold](https://github.com/YoshitakaMo/localcolabfold), which is a local version of [ColabFold](https://github.com/sokrypton/ColabFold). We provide a brief guideline for enabling using AlphaFold2 during evaluation:
 
