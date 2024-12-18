@@ -959,13 +959,14 @@ def write_summary_results(
 
     designable_fraction = f'{(designable_count / (pdb_count + 1e-6) * 100):.2f}'
     number_of_solutions = f'{diversity_result["Clusters"]}'
-    novelty_value = f'{novelty_value:.2f}' if isinstance(novelty_value, (int or float)) else novelty_value
+    novelty_value = round(novelty_value, 3)
+    novelty_value = f'{novelty_value:.3f}' if isinstance(novelty_value, (int or float)) else novelty_value
 
     # Formatting
     summary_table = [
         ["Evaluated Protein", os.path.basename(os.path.normpath(stored_path))],
         ["Number of Unique Solutions (Unique designable scaffolds)", number_of_solutions],
-        ["Novelty (Weighted across each cluster)", f'{novelty_value:.3f}'],
+        ["Novelty (Weighted across each cluster)", novelty_value],
         ["Success Rate", f"{designable_fraction}%"]
     ]
     formatted_table = tabulate(summary_table, tablefmt="grid", numalign="center")

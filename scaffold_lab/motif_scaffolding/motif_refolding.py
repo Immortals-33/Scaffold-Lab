@@ -918,15 +918,14 @@ class MotifEvaluator:
 
             # Weighted novelty across clusters
             novelty_values = [cluster_info["mean_novelty"] for cluster_info in clusters.values()]
-            weighted_novelty = sum(novelty_values) / len(novelty_values) if novelty_values else None
+            weighted_novelty = sum(novelty_values) / len(novelty_values)
 
             assert len(os.listdir(unique_backbones_dir)) == len(novelty_values), f"""
             Incompatible numbers of clusters{len(os.listdir(unique_backbones_dir))} 
             and number of novelty results {len(novelty_values)}, please have a check!
             """
 
-
-            novelty_score = 1 - weighted_novelty if weighted_novelty else None
+            novelty_score = 1 - weighted_novelty
             max_novelty = results_with_novelty["pdbTM"].min()
             self._log.info(
                 f"Novelty Calculation for {prefix} finished.\n"
@@ -935,10 +934,10 @@ class MotifEvaluator:
             )
             novelty_csv_path = os.path.join(self._result_dir, f"{prefix}_success_novelty_results.csv")
             results_with_novelty.to_csv(novelty_csv_path, index=False)
-            return novelty_score
         else:
             self._log.info(f"No successful backbone was found for {prefix}. Skipping novelty calculation.")
-            return "null"
+            novelty_score = 0
+        return novelty_score
 
 
     def run_evaluation(self):
