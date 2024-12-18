@@ -11,6 +11,7 @@ import pandas as pd
 from typing import Optional, Union, List, Tuple, Dict
 from pathlib import Path
 from datetime import datetime
+from tabulate import tabulate
 
 #import mdtraj as md
 import MDAnalysis as mda
@@ -960,13 +961,23 @@ def write_summary_results(
     number_of_solutions = f'{diversity_result["Clusters"]}'
     novelty_value = f'{novelty_value:.2f}' if isinstance(novelty_value, (int or float)) else novelty_value
 
+    # Formatting
+    summary_table = [
+        ["Evaluated Protein", os.path.basename(os.path.normpath(stored_path))],
+        ["Number of Unique Solutions (Unique designable scaffolds)", number_of_solutions],
+        ["Novelty (Weighted across each cluster)", f'{novelty_value:.3f}'],
+        ["Success Rate", f"{designable_fraction}%"]
+    ]
+    formatted_table = tabulate(summary_table, tablefmt="grid", numalign="center")
+
     with open (os.path.join(stored_path, f'{prefix}_summary.txt'), 'w') as f:
-        f.write('-------------------Summary-------------------\n')
-        f.write(f'The following are evaluation results for {os.path.abspath(stored_path)}:\n')
-        f.write(f'Evaluated Protein: {os.path.basename(os.path.normpath(stored_path))}\n')
-        f.write(f'Number of distinct solutions: {number_of_solutions}\n')
-        f.write(f'Novelty: {novelty_value}\n')
-        f.write(f'Success rate: {designable_fraction}%\n')
+        f.write('----------Summary----------\n\n')
+        f.write(f'The following are evaluation results for {os.path.abspath(stored_path)}:\n\n')
+        f.write(formatted_table + "\n")
+        #f.write(f'Evaluated protein: {os.path.basename(os.path.normpath(stored_path))}\n')
+        #f.write(f'Number of unique solutions (Unique designable scaffolds): {number_of_solutions}\n')
+        #f.write(f'Novelty (Weighted across each cluster): {novelty_value}\n')
+        #f.write(f'Success rate: {designable_fraction}%\n')
 
 
 def parse_contig(contig: str) -> List[Tuple[str, int, int]]:
