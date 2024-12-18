@@ -1,7 +1,5 @@
 # Scaffold-Lab
 
-***
-
 [![Paper](https://img.shields.io/badge/paper-biorxiv.2024.02.10.579743-F0A145)](https://www.biorxiv.org/content/10.1101/2024.02.10.579743v3)
 
 Official implementation for [**_Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework_**](https://www.biorxiv.org/content/10.1101/2024.02.10.579743v3). 
@@ -102,6 +100,11 @@ After successfully building a PDB database of Foldseek, you can save the `<folds
 
 ## Outline
 
+<details>
+    <summary>Expand</summary>
+
+
+
 Here is a guide about how you can go through this repository. We aim to provide an easy-to-use evaluation pipeline as well as maximize the utility of individual scripts. Let's go through the structure of this repository as a start:
 
 * `scaffold_lab`: This is the main directory to run different evaluations described in our paper.
@@ -110,6 +113,8 @@ Here is a guide about how you can go through this repository. We aim to provide 
 * `baselines`: In order to generate protein backbones directly inside this repository, you may find the code of different methods baselines for [unconditional generation](https://github.com/Immortals-33/Scaffold-Lab#unconditional-generation) and [conditional generation](https://github.com/Immortals-33/Scaffold-Lab#unconditional-generation) then clone their repository under this content. it is highly recommended to run inference for different baselines **inside their own virtual environment** for potential conflicts of environmental dependencies.
   * Inside the `experiment` folder we provide scripts for performing motif-scaffolding experiments by *Chroma* using its `SubstrctureConditioner`. Refer the script for detailed information if you want.
 * `config`: We place different configuration settings of [Hydra](https://github.com/facebookresearch/hydra) here to organize for evaluations. **Hydra** is a hierarchical configuration framework to help users systematize different experimental settings. Though it might be confusing when you first get in touch with it, it is a powerful tool to help you perform experiments efficiently with different combinations of parameters, for example, _the number of sequences to generate_. We recommend readers to [Docs](https://hydra.cc/docs/intro/) for advanced usage.
+
+</details>
 
 ***
 
@@ -219,6 +224,10 @@ The implementation of **AlphaFold2** is based on [LocalColabFold](https://github
   ```
 
 And voilà!
+
+</details>
+
+</details>
 
 ***
 
