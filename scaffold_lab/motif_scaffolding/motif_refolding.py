@@ -257,33 +257,34 @@ class MotifRefolder:
             # Handle redesigned positions
             if redesign_info is not None:
                 self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
-                redesign_mapping_dict, redesign_position_list, fixed_idx_for_mpnn = au.modified_introduce_redesign_positions(
-                    motif_indices, 
-                    redesign_info, 
-                    contig
-                    )
+            else:
+                self._log.info(f'No positions need to be redesigned.')
+            # Will return standard mapping list and fixed positions if no residue within motifs need to be redesigned
+            redesign_mapping_dict, redesign_position_list, fixed_idx_for_mpnn = au.motif_mapping(
+                motif_indices=motif_indices, 
+                redesign_positions=redesign_info, 
+                contig=contig
+                )
                 
 
-                if self._infer_conf.force_motif_AA_type:
-                    modified_design_pdb_path = os.path.join(backbone_dir, f"{backbone_name}_{sample_num}.pdb")
-                    
-                    # This will overwrite original protein if AA types of motifs are not all correct.
-                    # The original pdb will be copied to another directory named "original_pdb" as a reference.
-                    motif_AA_correct = au.check_motif_AA_type(
-                        design_file=design_pdb,
-                        reference_file=reference_pdb,
-                        position_mapping=redesign_mapping_dict,
-                        redesign_list=redesign_position_list,
-                        output_file=modified_design_pdb_path
-                    )
-                    if motif_AA_correct == False:
-                        original_pdb_dir = os.path.join(backbone_dir, "original_pdb")
-                        os.makedirs(original_pdb_dir, exist_ok=True)
-                        shutil.copy2(design_pdb, original_pdb_dir)
-                        self._log.info(f"Copied original PDB to {original_pdb_dir} as reference.")
-                        design_pdb = modified_design_pdb_path
-                        
-
+            if self._infer_conf.force_motif_AA_type:
+                modified_design_pdb_path = os.path.join(backbone_dir, f"{backbone_name}_{sample_num}.pdb")
+                
+                # This will overwrite original protein if AA types of motifs are not all correct.
+                # The original pdb will be copied to another directory named "original_pdb" as a reference.
+                motif_AA_correct = au.check_motif_AA_type(
+                    design_file=design_pdb,
+                    reference_file=reference_pdb,
+                    position_mapping=redesign_mapping_dict,
+                    redesign_list=redesign_position_list,
+                    output_file=modified_design_pdb_path
+                )
+                if motif_AA_correct == False:
+                    original_pdb_dir = os.path.join(backbone_dir, "original_pdb")
+                    os.makedirs(original_pdb_dir, exist_ok=True)
+                    shutil.copy2(design_pdb, original_pdb_dir)
+                    self._log.info(f"Copied original PDB to {original_pdb_dir} as reference.")
+                    design_pdb = modified_design_pdb_path   
 
                 # Check information for redesign positions
                 #au.check_motif_positions(
@@ -569,7 +570,7 @@ class MotifRefolder:
             # Run ESMFold
                 self._log.info(f'Running ESMFold......')
                 esmf_sample_path = os.path.join(esmf_dir, f'sample_{idx}.pdb')
-                _, full_output = self.run_folding(string, esmf_sample_path)
+                _, full_output = self.run_esmfold(string, esmf_sample_path)
                 esmf_feats = su.parse_pdb_feats('folded_sample', esmf_sample_path)
                 sample_seq = su.aatype_to_seq(sample_feats['aatype'])
 
@@ -619,8 +620,9 @@ class MotifRefolder:
             af2_dir = os.path.join(decoy_pdb_dir, 'af2')
             os.makedirs(af2_dir, exist_ok=True)
             af2_outputs = au.cleanup_af2_outputs(
-                af2_raw_dir,
-                os.path.join(decoy_pdb_dir, 'af2')
+                raw_dir=af2_raw_dir,
+                clean_dir=os.path.join(decoy_pdb_dir, 'af2'),
+                remove_after_cleanup=self._af2_conf.remove_raw_outputs
             )
 
             for i, (header, string) in enumerate(seqs_dict.items()):
@@ -681,7 +683,7 @@ class MotifRefolder:
 
 
 
-    def run_folding(self, sequence, save_path):
+    def run_esmfold(self, sequence: str, save_path: Union[str, Path]):
         """
         Run ESMFold on sequence.
         TBD: Add options for OmegaFold and AlphaFold2.
@@ -694,7 +696,7 @@ class MotifRefolder:
             f.write(output[0])
         return output, output_dict
 
-    def run_af2(self, sequence, save_path):
+    def run_af2(self, sequence: str, save_path: Union[str, Path]):
         """
         Run AlphaFold2 (single-sequence) through LocalColabFold.
         """
