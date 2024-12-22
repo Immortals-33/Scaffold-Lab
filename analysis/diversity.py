@@ -54,7 +54,7 @@ def foldseek_cluster(
             -v 0'
 
     if foldseek_path is not None:
-        cmd.replace('foldseek', foldseek_path)
+        cmd.replace('foldseek', str(foldseek_path))
 
     assist_num = 0
     try:

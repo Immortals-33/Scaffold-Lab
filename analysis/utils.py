@@ -11,6 +11,7 @@ import pandas as pd
 from typing import Optional, Union, List, Tuple, Dict
 from pathlib import Path
 from datetime import datetime
+from tabulate import tabulate
 
 #import mdtraj as md
 import MDAnalysis as mda
@@ -25,6 +26,7 @@ from biotite.sequence import ProteinSequence
 from biotite.sequence.io import fasta
 from tmtools import tm_align
 from Bio.PDB.parse_pdb_header import parse_pdb_header
+from Bio.PDB import PDBParser
 from pymol import cmd
 
 
@@ -77,66 +79,6 @@ def reference_motif_extract(
     return motif_extract(position, structure_path, atom_part)
 
 
-
-
-def motif_scaffolding_pymol_write(unique_designable_backbones,native_backbones,motif_json,save_path,native_motif_color="orange",design_motif_color="purple",design_scaffold_color="marine"):
-    unique_designable_backbones_pdb = [i.replace(".pdb","") for i in os.listdir(unique_designable_backbones) if i.endswith('.pdb')]
-    native_pdb = f"{native_backbones}/{unique_designable_backbones_pdb[0].split('_')[0]}.pdb"
-    with open(motif_json,"r") as f:
-        info = json.load(f)
-    design_name_motif = {}
-    for i in unique_designable_backbones_pdb:
-        design_name_motif[i] = info[i]["motif_idx"]
-    # re-initialize the pymol
-    cmd.reinitialize()
-    cmd.load(native_pdb, "native_pdb")
-    contig = list(info.values())[0]["contig"]
-    # "contig": "31-31/B25-46/32-32/A32/A4/A5"
-    contig_list = [i for i in contig.split("/") if not i[0].isdigit()]
-    config_folder = []
-    for i in contig_list:
-        chain = i[0]
-        i = i[1:]
-        if "-" in i:
-            element = i.split("-")
-            start = element[0]
-            end = element[1]
-            select = f"resi {start}-{end} and chain {chain}"
-            config_folder.append(select)
-        else:
-            select = f"resi {i[1:]} and chain {chain}"
-            config_folder.append(select)
-    # merge all the contig into one
-    config_extract = " or ".join(config_folder)
-    print(f"loading native motif {config_extract}")
-
-    cmd.extract("native_motif",config_extract)
-    # delete native_pdb 
-    cmd.delete("native_pdb")
-    # color the native motif of PDB
-    cmd.color(native_motif_color,"native_motif")
-    cmd.show("sticks","native_motif")
-    
-    for i in os.listdir(unique_designable_backbones):
-        print(i)
-        if i.endswith(".pdb"):
-            name = i.split(".")[0]
-            cmd.load(f"{unique_designable_backbones}/{i}",name)
-            cmd.color(design_scaffold_color,name)
-            motif_residue = design_name_motif[name]
-            cmd.select(f"{name}_motif","resi "+"+".join([str(i) for i in motif_residue])+" and "+name)
-            cmd.color(design_motif_color,f"{name}_motif")
-            cmd.show("sticks",f"{name}_motif")
-            # align the motif
-            cmd.align(f"{name}","native_motif")
-    # set grid_mode to 1
-    cmd.set("grid_mode",1)
-    # zoom on the {name}
-    cmd.zoom(f"{name}")
-    cmd.save(save_path)
-
-
-
 def motif_extract(
     position: str,
     structure_path: Union[str, struc.AtomArray],
@@ -183,6 +125,7 @@ def motif_extract(
         motif += motif_array[i + 1]
     return motif
 
+
 def rmsd(
     reference: Union[str, struc.AtomArray],
     target: Union[str, struc.AtomArray],
@@ -202,6 +145,7 @@ def rmsd(
     superimposed, _ = struc.superimpose(reference, target)
     rms = struc.rmsd(reference, superimposed)
     return rms
+
 
 def calculate_secondary_structure(
     input: Union[str, struc.AtomArray] = None,
@@ -223,6 +167,7 @@ def calculate_secondary_structure(
 
     return [sse_format, alpha_composition, beta_composition, coil_composition, turn_composition]
 
+
 def radius_of_gyration(
     input: str,
     atom_part: Optional[str] = "all-atom",
@@ -239,15 +184,24 @@ def radius_of_gyration(
     return round(rg, 3)
 
 
-def calc_tm_score(pos_1, pos_2, seq_1, seq_2):
+def calc_tm_score(pos_1: np.ndarray, pos_2:np.ndarray, seq_1: str, seq_2: str) -> Tuple[float, float]:
+    # Taken from FrameDiff codebase.
     tm_results = tm_align(pos_1, pos_2, seq_1, seq_2)
     return tm_results.tm_norm_chain1, tm_results.tm_norm_chain2
 
-def calc_aligned_rmsd(pos_1, pos_2):
+
+def calc_aligned_rmsd(pos_1: np.ndarray, pos_2: np.ndarray) -> Union[int, float]:
+    # Adapted from FrameDiff codebase.
+    # https://github.com/jasonkyuyim/se3_diffusion/blob/53359d71cfabc819ffaa571abd2cef736c871a5d/analysis/metrics.py#L71-L73
+    # Note this implementation differs from FrameDiff that
+    # FrameDiff calculates the mean RMSD over all residues of $\frac{1}{N} {\sum_{i=1}^N \parallel \vec{x_i} - \vec{y_i} \parallel_2}$
+    # While we follow the standard RMSD computation of $\sqrt{\frac{1}{N} \sum_{i=1}^N \parallel \vec{x_i} - \vec{y_i} \parallel_2^2}$
+    # Both performs rigid transform using Kabsch algorithm before computing RMSD.
     aligned_pos_1 = rigid_transform_3D(pos_1, pos_2)[0]
     return np.sqrt(np.mean(np.linalg.norm(aligned_pos_1 - pos_2, axis=-1) ** 2))
 
-def rigid_transform_3D(A, B, verbose=False):
+
+def rigid_transform_3D(A:np.ndarray, B:np.ndarray, verbose: bool=False) -> Tuple:
     # Transforms A to look like B
     # https://github.com/nghiaho12/rigid_transform_3D
     assert A.shape == B.shape
@@ -298,13 +252,15 @@ def rigid_transform_3D(A, B, verbose=False):
 
     return optimal_A.T, R, t, reflection_detected
 
+
 def parse_pdb_feats(
         pdb_name: str,
         pdb_path: str,
-        scale_factor=1.,
-        chain_id='A',
+        scale_factor: Union[str, float] = 1.,
+        chain_id: str = 'A',
     ):
     """
+    Taken from FrameDiff codebase.
     Only used in inference procedure to prepare ESMFold prediction.
 
     Args:
@@ -344,14 +300,18 @@ def parse_pdb_feats(
     else:
         raise ValueError(f'Unrecognized chain list {chain_id}')
 
-def randomly_select_and_copy_pdb_files(src_folder, dst_folder, num_files):
+
+def randomly_select_and_copy_pdb_files(
+    src_folder: Union[str, Path],
+    dst_folder: Union[str, Path], 
+    num_files: int) -> None:
     """
     Randomly select and copy a specified number of PDB files
     from a source folder to a destination folder.
 
-    :param src_folder: Path to the source folder containing PDB files.
-    :param dst_folder: Path to the destination folder where files will be copied.
-    :param num_files: Number of PDB files to randomly select and copy.
+    src_folder: Path to the source folder containing PDB files.
+    dst_folder: Path to the destination folder where files will be copied.
+    num_files: Number of PDB files to randomly select and copy.
     """
     # Get a list of all PDB files in the source folder
     pdb_files = [file for file in os.listdir(src_folder) if file.endswith('.pdb')]
@@ -371,24 +331,25 @@ def randomly_select_and_copy_pdb_files(src_folder, dst_folder, num_files):
     for file in selected_files:
         shutil.copy(os.path.join(src_folder, file), os.path.join(dst_folder, file))
 
+
 def cleanup_af2_outputs(
-    af2_dir: Union[str, Path],
-    path_to_store: Union[str, Path],
-    remove_after_cleanup: Optional = False
+    raw_dir: Union[str, Path],
+    clean_dir: Union[str, Path],
+    remove_after_cleanup: bool = False
 ) -> Dict:
 
     output_dict = {}
-    for file in os.listdir(af2_dir):
+    for file in os.listdir(raw_dir):
         if file.endswith('.pdb'):
             if file.startswith('T_0') == False: # original backbone sequence
-                new_path = os.path.join(path_to_store, 'sample_0.pdb')
-                shutil.copy2(os.path.join(af2_dir, file), new_path)
+                new_path = os.path.join(clean_dir, 'sample_0.pdb')
+                shutil.copy2(os.path.join(raw_dir, file), new_path)
                 output_dict['sample_0'] = {}
                 output_dict['sample_0']['sample_path'] = os.path.abspath(new_path)
             else: # Designed sequence
                 sample_index = os.path.splitext(file)[0].split('sample_')[1].split('__score')[0]
-                new_path = os.path.join(path_to_store, f'sample_{sample_index}.pdb')
-                shutil.copy2(os.path.join(af2_dir, file), new_path)
+                new_path = os.path.join(clean_dir, f'sample_{sample_index}.pdb')
+                shutil.copy2(os.path.join(raw_dir, file), new_path)
                 if f'sample_{sample_index}' not in output_dict:
                     output_dict[f'sample_{sample_index}'] = {}
                 output_dict[f'sample_{sample_index}']['sample_path'] = os.path.abspath(new_path)
@@ -397,7 +358,7 @@ def cleanup_af2_outputs(
                 sample_index = os.path.splitext(file)[0].split('sample_')[1].split('__score')[0]
                 if f'sample_{sample_index}' not in output_dict:
                     output_dict[f'sample_{sample_index}'] = {}
-                with open(os.path.join(af2_dir, file), 'r') as f:
+                with open(os.path.join(raw_dir, file), 'r') as f:
                     j = json.load(f)
                     output_dict[f'sample_{sample_index}']['plddt'] = np.mean(j['plddt'])
                     output_dict[f'sample_{sample_index}']['pae'] = np.mean(j['pae'])
@@ -405,12 +366,15 @@ def cleanup_af2_outputs(
             else: # original backbone sequence
                 if 'sample_0' not in output_dict:
                     output_dict['sample_0'] = {}
-                with open(os.path.join(af2_dir, file), 'r') as f:
+                with open(os.path.join(raw_dir, file), 'r') as f:
                     j = json.load(f)
                     output_dict['sample_0']['plddt'] = np.mean(j['plddt'])
                     output_dict['sample_0']['pae'] = np.mean(j['pae'])
                     output_dict['sample_0']['ptm'] = np.mean(j['ptm'])
+    if remove_after_cleanup:
+        shutil.rmtree(raw_dir, ignore_errors=True)
     return output_dict
+
 
 def write_seqs_to_fasta(
     input_seqs: Union[Dict, list, str],
@@ -422,8 +386,7 @@ def write_seqs_to_fasta(
     fasta_instance.write(fasta_path)
 
 
-from Bio.PDB import PDBParser
-def reference_contig_from_segments(pdb_file, segment_order):
+def reference_contig_from_segments(pdb_file: Union[str, Path], segment_order: str):
     parser = PDBParser(QUIET=True)
     structure = parser.get_structure("structure", pdb_file)
     
@@ -444,6 +407,7 @@ def reference_contig_from_segments(pdb_file, segment_order):
     
     # Join all chain ranges with "/" separator
     return "/".join(chain_ranges)
+
 
 def get_csv_data(
     csv_info: Union[str, Path],
@@ -528,6 +492,7 @@ def motif_indices_to_contig(motif_indices: Union[List, str]) -> str:
             range_start = None
     return contig
 
+
 def motif_indices_to_fixed_positions(motif_indices: Union[str, List]) -> str:
     """Converts motif indices to the fixed positions string format compatible with ProteinMPNN.
     e.g. [1, 2, 3, 4, 5, 8, 9] -> "1 2 3 4 5 8 9"
@@ -550,7 +515,7 @@ def motif_indices_to_fixed_positions(motif_indices: Union[str, List]) -> str:
 def parse_contig_string(
     contig_string: str,
     split_char: str="/"
-    ):
+    ) -> List:
     # Code by @blt2114
     contig_segments = []
     for motif_segment in contig_string.split(split_char):
@@ -586,6 +551,7 @@ def introduce_redesign_positions(
             redesign_pos.append(int(i))
     final_pos = [pos for pos in eval(fix_positions) if pos not in redesign_pos]
     return final_pos
+
 
 def generate_indices_and_mask(contig: str) -> Tuple[int, List[int], np.ndarray]:
     """Index motif and scaffold positions by contig for sequence redesign.
@@ -705,7 +671,7 @@ def write_contig_into_header(
     contig: str,
     output_path: Optional[Union[str, Path]],
     write_additional_info: bool = True,
-):
+    ) -> None:
 
     date = datetime.now().strftime("%d-%b-%y").upper() if write_additional_info else ""
     #identifier = os.path.basename(pdb_path).strip('.pdb') if write_additional_info else ""
@@ -776,8 +742,8 @@ def csv_merge(
 
 def read_folding_method(
     eval_data: Union[str, Path, pd.DataFrame],
-    prefix: str = 'esm'
-):
+    prefix: str = 'esm',
+    ) -> Dict:
     eval_results = pd.read_csv(eval_data) if isinstance(eval_data, str) or isinstance(eval_data, Path) else eval_data
     
     if prefix == 'esm' or prefix == 'af2':
@@ -868,9 +834,6 @@ def _process_results(self, prefix: str):
     return complete_results, backbones, designability_count, pdb_count
 
 
-
-
-
 def format_chain_positions(positions: List[str]) -> str:
     if not positions:
         return ""
@@ -958,15 +921,26 @@ def write_summary_results(
 
     designable_fraction = f'{(designable_count / (pdb_count + 1e-6) * 100):.2f}'
     number_of_solutions = f'{diversity_result["Clusters"]}'
-    novelty_value = f'{novelty_value:.2f}' if isinstance(novelty_value, (int or float)) else novelty_value
+    novelty_value = round(novelty_value, 3)
+    novelty_value = f'{novelty_value:.3f}' if isinstance(novelty_value, (int or float)) else novelty_value
+
+    # Formatting
+    summary_table = [
+        ["Evaluated Protein", os.path.basename(os.path.normpath(stored_path))],
+        ["Number of Unique Solutions (Unique designable scaffolds)", number_of_solutions],
+        ["Novelty (Weighted across each cluster)", novelty_value],
+        ["Success Rate", f"{designable_fraction}%"]
+    ]
+    formatted_table = tabulate(summary_table, tablefmt="grid", numalign="center")
 
     with open (os.path.join(stored_path, f'{prefix}_summary.txt'), 'w') as f:
-        f.write('-------------------Summary-------------------\n')
-        f.write(f'The following are evaluation results for {os.path.abspath(stored_path)}:\n')
-        f.write(f'Evaluated Protein: {os.path.basename(os.path.normpath(stored_path))}\n')
-        f.write(f'Number of distinct solutions: {number_of_solutions}\n')
-        f.write(f'Novelty: {novelty_value}\n')
-        f.write(f'Success rate: {designable_fraction}%\n')
+        f.write('----------Summary----------\n\n')
+        f.write(f'The following are evaluation results for {os.path.abspath(stored_path)}:\n\n')
+        f.write(formatted_table + "\n")
+        #f.write(f'Evaluated protein: {os.path.basename(os.path.normpath(stored_path))}\n')
+        #f.write(f'Number of unique solutions (Unique designable scaffolds): {number_of_solutions}\n')
+        #f.write(f'Novelty (Weighted across each cluster): {novelty_value}\n')
+        #f.write(f'Success rate: {designable_fraction}%\n')
 
 
 def parse_contig(contig: str) -> List[Tuple[str, int, int]]:
@@ -1037,8 +1011,8 @@ def check_motif_positions(
     motif_pdb_path: Union[str, Path],
     reference_contig: str,
     segment_order: str,
-    redesign_positions: str
-):
+    redesign_positions: str,
+    ) -> None:
     # Parse contig and redesign positions
     contig_segments = parse_contig(reference_contig)
     redesign_segments = parse_redesign_positions(redesign_positions) 
@@ -1116,6 +1090,7 @@ def parse_contig_to_dict(contig_string: str) -> List[Dict[str, Union[str, int]]]
             contig_segments.append({"chain": "scaffold", "length": scaffold_length})
     return contig_segments
 
+
 def quantize_redesign_positions(redesign_info: str) -> List[str]:
     """
     Parse redesign positions into a list of individual chain-position strings.
@@ -1134,9 +1109,9 @@ def quantize_redesign_positions(redesign_info: str) -> List[str]:
     return redesign_list
 
 
-def modified_introduce_redesign_positions(
+def motif_mapping(
     motif_indices: List[int],
-    redesign_positions: str,
+    redesign_positions: Optional[str], # Will be `None` if no residues are to be redesigned 
     contig: str
 ) -> Tuple[Dict, List[str], List[int]]:
     """
@@ -1152,7 +1127,7 @@ def modified_introduce_redesign_positions(
     """
     # Parse the contig and redesign positions
     contig_segments = parse_contig_to_dict(contig)
-    redesign_list = quantize_redesign_positions(redesign_positions)
+    redesign_list = quantize_redesign_positions(redesign_positions) if redesign_positions else []
 
     # Build a dictionary mapping native positions to motif indices
     native_to_index = {}
@@ -1175,17 +1150,11 @@ def modified_introduce_redesign_positions(
             else:
                 break
 
-    print(f"native to index: {native_to_index}")
-
     # Filter out the redesign positions from the mapping
     updated_indices = [
         index for native_key, index in native_to_index.items()
         if native_key not in redesign_list
     ]
-    #print(f"motif indices: {motif_indices}")
-    #print(f"redesign positions: {redesign_positions}")
-    #print(f"contig: {contig}")
-    #print(f"updated indices: {updated_indices}")
 
     return (native_to_index, redesign_list, updated_indices)
 
@@ -1243,7 +1212,7 @@ def check_motif_AA_type(
     
     # Change Amino acid types if uncorrect ones exist
     if len(incompatible_list) > 0:
-        log.warning(f"Residues {incompatible_list} in designed backbone not consistent to standard motifs, changed accordingly.")
+        log.warning(f"Residues types in {incompatible_list} in designed backbone not consistent to standard motifs, changed accordingly.")
         for ref_position, design_idx in position_mapping.items():
             if ref_position not in redesign_list:
                 ref_chain_id = ref_position[0]
@@ -1258,4 +1227,5 @@ def check_motif_AA_type(
         log.info(f"Overwritten residue types of fixed motif residues into {output_file}, would be used as input for sequence design.")
         return False
     else:
+        log.info(f"Residue types in designed backbone are consistent to standard motifs, continue.")
         return True

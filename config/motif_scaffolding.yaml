@@ -12,7 +12,7 @@ inference:
   pmpnn_dir: ./tools/ProteinMPNN/
   output_dir: ./outputs/2KL8/
   motif_csv_path: ./demo/motif_scaffolding/motif_info.csv
-  motif_pdb: ./demo/motif_scaffolding/native_motifs/06_2KL8.pdb
+  motif_pdb: ./demo/motif_scaffolding/native_motifs/2KL8_motif.pdb
   benchmark_set: None
   
   # Setting of ProteinMPNN
@@ -33,7 +33,7 @@ inference:
 
   af2:
     executive_colabfold_path: path_to_your_localcolabfold
-    recycle: 10
+    recycle: 3
     seed: 33
     model_type: alphafold2_ptm # {auto, alphafold2, alphafold2_multimer_{v1-v3}, deepfold_v1}
     num_models: 1 # {1,2,3,4,5}
@@ -41,10 +41,12 @@ inference:
     num_relax: 3
     use_gpu_relax: False
     rank: ptm # {auto, plddt, ptm, iptm, multimer}
+    remove_raw_outputs: True
 
 evaluation:
   assist_protein: ./tools/assistant_protein/assist_protein.pdb
   foldseek_path: None
   foldseek_database: ???
   foldseek_cores_for_pdbTM: 4
+  tmscore_threshold: 0.6 # `tmscore-threshold` parameter for Foldseek-Cluster
   visualize: True

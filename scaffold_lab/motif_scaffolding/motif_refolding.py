@@ -30,6 +30,7 @@ import GPUtil
 from pathlib import Path
 from typing import Optional, Dict, Union, List
 from omegaconf import DictConfig, OmegaConf
+from collections import defaultdict
 
 import esm
 import biotite.structure.io as strucio
@@ -53,7 +54,7 @@ from analysis import novelty as nu
 from analysis import plot as pu
 
 
-class Refolder:
+class MotifRefolder:
 
     """
     Perform refolding analysis on a set of protein backbones.
@@ -74,7 +75,8 @@ class Refolder:
         conf_overrides: Dict=None
         ):
 
-        self._log = logging.getLogger(__name__)
+        self._log = logging.getLogger(self.__class__.__name__)
+        warnings.filterwarnings("ignore", module="biotite.*|psutil.*|matplotlib.*", category=UserWarning)
 
         OmegaConf.set_struct(conf, False)
 
@@ -82,7 +84,6 @@ class Refolder:
         self._conf = conf
         self._infer_conf = conf.inference
         self._sample_conf = self._infer_conf.samples
-        print("sample_conf:", self._sample_conf)
 
         # Sanity check
         if self._sample_conf.seq_per_sample < self._sample_conf.mpnn_batch_size:
@@ -104,8 +105,6 @@ class Refolder:
         else:
             self.device = 'cpu'
         self._log.info(f'Using device: {self.device}')
-
-        warnings.filterwarnings("ignore", module="biotite.*|psutil.*", category=UserWarning)
 
         # Customizing different structure prediction methods
         self._forward_folding = self._infer_conf.predict_method
@@ -263,32 +262,33 @@ class Refolder:
 
             if redesign_info is not None:
                 self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
-                redesign_mapping_dict, redesign_position_list, fixed_idx_for_mpnn = au.modified_introduce_redesign_positions(
-                    motif_indices, 
-                    redesign_info, 
-                    contig
-                    )
+            else:
+                self._log.info(f'No positions need to be redesigned.')
+            # Will return standard mapping list and fixed positions if no residue within motifs need to be redesigned
+            redesign_mapping_dict, redesign_position_list, fixed_idx_for_mpnn = au.motif_mapping(
+                motif_indices=motif_indices, 
+                redesign_positions=redesign_info, 
+                contig=contig
+                )
                 
-
-                if self._infer_conf.force_motif_AA_type:
-                    modified_design_pdb_path = os.path.join(backbone_dir, f"{backbone_name}_{sample_num}.pdb")
-                    
-                    # This will overwrite original protein if AA types of motifs are not all correct.
-                    # The original pdb will be copied to another directory named "original_pdb" as a reference.
-                    motif_AA_correct = au.check_motif_AA_type(
-                        design_file=design_pdb,
-                        reference_file=reference_pdb,
-                        position_mapping=redesign_mapping_dict,
-                        redesign_list=redesign_position_list,
-                        output_file=modified_design_pdb_path
-                    )
-                    if motif_AA_correct == False:
-                        original_pdb_dir = os.path.join(backbone_dir, "original_pdb")
-                        os.makedirs(original_pdb_dir, exist_ok=True)
-                        shutil.copy2(design_pdb, original_pdb_dir)
-                        self._log.info(f"Copied original PDB to {original_pdb_dir} as reference.")
-                        design_pdb = modified_design_pdb_path
-                        
+            if self._infer_conf.force_motif_AA_type:
+                modified_design_pdb_path = os.path.join(backbone_dir, f"{backbone_name}_{sample_num}.pdb")
+                
+                # This will overwrite original protein if AA types of motifs are not all correct.
+                # The original pdb will be copied to another directory named "original_pdb" as a reference.
+                motif_AA_correct = au.check_motif_AA_type(
+                    design_file=design_pdb,
+                    reference_file=reference_pdb,
+                    position_mapping=redesign_mapping_dict,
+                    redesign_list=redesign_position_list,
+                    output_file=modified_design_pdb_path
+                )
+                if motif_AA_correct == False:
+                    original_pdb_dir = os.path.join(backbone_dir, "original_pdb")
+                    os.makedirs(original_pdb_dir, exist_ok=True)
+                    shutil.copy2(design_pdb, original_pdb_dir)
+                    self._log.info(f"Copied original PDB to {original_pdb_dir} as reference.")
+                    design_pdb = modified_design_pdb_path   
 
             # Extract motif and calculate backbone motif-RMSD, which is the `backbone_motif_rmsd` metric in outputs.
             # !!Note: This `rms` is the motif-RMSD between native motif and initially-generated backbone,
@@ -552,7 +552,7 @@ class Refolder:
             # Run ESMFold
                 self._log.info(f'Running ESMFold......')
                 esmf_sample_path = os.path.join(esmf_dir, f'sample_{idx}.pdb')
-                _, full_output = self.run_folding(string, esmf_sample_path)
+                _, full_output = self.run_esmfold(string, esmf_sample_path)
                 esmf_feats = su.parse_pdb_feats('folded_sample', esmf_sample_path)
                 sample_seq = su.aatype_to_seq(sample_feats['aatype'])
 
@@ -602,8 +602,9 @@ class Refolder:
             af2_dir = os.path.join(decoy_pdb_dir, 'af2')
             os.makedirs(af2_dir, exist_ok=True)
             af2_outputs = au.cleanup_af2_outputs(
-                af2_raw_dir,
-                os.path.join(decoy_pdb_dir, 'af2')
+                raw_dir=af2_raw_dir,
+                clean_dir=os.path.join(decoy_pdb_dir, 'af2'),
+                remove_after_cleanup=self._af2_conf.remove_raw_outputs
             )
 
             for i, (header, string) in enumerate(seqs_dict.items()):
@@ -664,7 +665,7 @@ class Refolder:
 
 
 
-    def run_folding(self, sequence, save_path):
+    def run_esmfold(self, sequence: str, save_path: Union[str, Path]):
         """
         Run ESMFold on sequence.
         TBD: Add options for OmegaFold and AlphaFold2.
@@ -677,7 +678,7 @@ class Refolder:
             f.write(output[0])
         return output, output_dict
 
-    def run_af2(self, sequence, save_path):
+    def run_af2(self, sequence: str, save_path: Union[str, Path]):
         """
         Run AlphaFold2 (single-sequence) through LocalColabFold.
         """
@@ -730,15 +731,16 @@ class Refolder:
                 if num_tries_af2 > 10:
                     raise e
 
-class Evaluator:
+class MotifEvaluator:
 
     def __init__(
-    self,
-    conf:DictConfig,
-    conf_overrides: Dict=None
-    ):
+        self, 
+        conf:DictConfig,
+        conf_overrides: Dict=None
+        ):
 
-        self._log = logging.getLogger(__name__)
+        self._log = logging.getLogger(self.__class__.__name__)
+        logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 
         OmegaConf.set_struct(conf, False)
 
@@ -752,6 +754,7 @@ class Evaluator:
         self._foldseek_database = self._eval_conf.foldseek_database
         self._package_dir = "/".join(scaffold_lab.__path__._path[0].split("/")[:-1])
         self._assist_protein_path = os.path.join(self._package_dir, self._eval_conf.assist_protein)
+        self._tm_threshold = self._eval_conf.tmscore_threshold
         self._visualize = self._eval_conf.visualize
 
         self.folding_method = self._infer_conf.predict_method
@@ -800,7 +803,11 @@ class Evaluator:
         return complete_results, backbones, designability_count, pdb_count
 
 
-    def _evaluate_diversity(self, backbones: set, prefix: str):
+    def _evaluate_diversity(
+        self, 
+        backbones: set, 
+        prefix: str
+        ):
         """Run diversity evaluation."""
         successful_backbone_dir = os.path.join(self._result_dir, f"{prefix}_successful_backbones")
         os.makedirs(successful_backbone_dir, exist_ok=True)
@@ -811,7 +818,7 @@ class Evaluator:
         diversity = du.foldseek_cluster(
             input=successful_backbone_dir,
             assist_protein_path=self._assist_protein_path,
-            tmscore_threshold=0.5,
+            tmscore_threshold=self._tm_threshold,
             alignment_type=1,
             output_mode="DICT",
             save_tmp=True,
@@ -829,15 +836,27 @@ class Evaluator:
         unique_backbones_dir = os.path.join(self._result_dir, f"{prefix}_unique_designable_backbones")
         os.makedirs(unique_backbones_dir, exist_ok=True)
 
+        cluster_centers = set()
+        cluster_dict = {}
+
         if os.path.exists(diversity_result_path):
             with open(diversity_result_path, "r") as f:
                 cluster_info = f.readlines()
-            cluster_info = [i.split("\t")[0] for i in cluster_info]
-            if "assist_protein.pdb" in cluster_info:
-                cluster_info.remove("assist_protein.pdb")
-            unique_designable_backbones = set(cluster_info)
 
-            for pdb in unique_designable_backbones:
+            cluster_map = defaultdict(list)
+            for line in cluster_info:
+                center, member = line.strip().split("\t")
+                cluster_map[center].append(member)
+            cluster_map.pop("assist_protein.pdb", None)
+
+            for idx, (center, members) in enumerate(cluster_map.items(), start=1):
+                cluster_centers.add(center)
+                cluster_dict[str(idx)] = {"center": center, "member": members}
+
+            if "assist_protein.pdb" in cluster_centers:
+                cluster_info.remove("assist_protein.pdb")
+
+            for pdb in cluster_centers:
                 old_path = os.path.join(successful_backbone_dir, pdb)
                 shutil.copy(old_path, unique_backbones_dir)
         else:
@@ -845,10 +864,17 @@ class Evaluator:
                 f"Diversity results for {prefix} not found. Please check if Foldseek clustered properly or no designable backbones are present."
             )
 
-        return diversity, successful_backbone_dir, unique_backbones_dir
+        return diversity, successful_backbone_dir, unique_backbones_dir, cluster_dict
 
 
-    def _evaluate_novelty(self, complete_results, successful_backbone_dir, prefix: str):
+    def _evaluate_novelty(
+        self, 
+        complete_results: Union[str, Path, pd.DataFrame], 
+        successful_backbone_dir: Union[str, Path], 
+        unique_backbones_dir: Union[str, Path],
+        clusters: Dict,
+        prefix: str = "esm"
+        ):
         """Run novelty evaluation."""
         if os.listdir(successful_backbone_dir):
             success_results = complete_results[complete_results["Success"] == True]
@@ -858,19 +884,45 @@ class Evaluator:
                 max_workers=self._num_cpu_cores,
                 cpu_threshold=75.0,
             )
-            novelty_score = 1 - results_with_novelty["pdbTM"].median()
+
+            unique_backbones = results_with_novelty[results_with_novelty["sample_idx"] == 1]
+            novelty_lookup = dict(zip(unique_backbones["backbone_path"].apply(os.path.basename), unique_backbones["pdbTM"]))
+
+            for cluster_id, cluster_info in clusters.items():
+                center = cluster_info["center"]
+                members = cluster_info["member"]
+
+                cluster_novelty_values = [novelty_lookup.get(member, None) for member in members]
+                cluster_novelty_values = [val for val in cluster_novelty_values if val is not None]
+
+                if cluster_novelty_values:
+                    mean_novelty = sum(cluster_novelty_values) / len(cluster_novelty_values)
+                    clusters[cluster_id]["mean_novelty"] = mean_novelty
+                else:
+                    clusters[cluster_id]["mean_novelty"] = None
+
+            # Weighted novelty across clusters
+            novelty_values = [cluster_info["mean_novelty"] for cluster_info in clusters.values()]
+            weighted_novelty = sum(novelty_values) / len(novelty_values)
+
+            assert len(os.listdir(unique_backbones_dir)) == len(novelty_values), f"""
+            Incompatible numbers of clusters{len(os.listdir(unique_backbones_dir))} 
+            and number of novelty results {len(novelty_values)}, please have a check!
+            """
+
+            novelty_score = 1 - weighted_novelty
             max_novelty = results_with_novelty["pdbTM"].min()
             self._log.info(
                 f"Novelty Calculation for {prefix} finished.\n"
-                f"Novelty score (1 - pdbTM) among successful backbones: {novelty_score:.3f}\n"
+                f"Novelty score (1 - pdbTM) among successful backbones weighted by number of clusters: {novelty_score:.3f}\n"
                 f"The most novel designable backbone has a pdbTM of {max_novelty:.3f}"
             )
-            novelty_csv_path = os.path.join(self._result_dir, f"{prefix}_novelty_results.csv")
+            novelty_csv_path = os.path.join(self._result_dir, f"{prefix}_success_novelty_results.csv")
             results_with_novelty.to_csv(novelty_csv_path, index=False)
-            return novelty_score
         else:
             self._log.info(f"No successful backbone was found for {prefix}. Skipping novelty calculation.")
-            return "null"
+            novelty_score = 0
+        return novelty_score
 
 
     def run_evaluation(self):
@@ -886,8 +938,13 @@ class Evaluator:
 
             # Process results and calculate diversity and novelty
             complete_results, backbones, designability_count, pdb_count = self._process_results(prefix)
-            diversity, successful_backbone_dir, unique_designable_backbone_dir = self._evaluate_diversity(backbones, prefix)
-            novelty_score = self._evaluate_novelty(complete_results, successful_backbone_dir, prefix)
+            diversity, successful_backbone_dir, unique_clusters, clusters_information = self._evaluate_diversity(backbones, prefix)
+            novelty_score = self._evaluate_novelty(
+                complete_results=complete_results,
+                successful_backbone_dir=successful_backbone_dir,
+                unique_backbones_dir=unique_clusters,
+                clusters=clusters_information, 
+                prefix=prefix)
 
             # Collect results
             diversity_results[prefix] = diversity
@@ -917,6 +974,13 @@ class Evaluator:
                     prefix=prefix
                 )
 
+                if len(os.listdir(successful_backbone_dir)) >= 5:
+                    pu.plot_novelty_distribution(
+                        input=os.path.join(self._result_dir, f"{prefix}_success_novelty_results.csv"),
+                        save_path=self._result_dir,
+                        prefix=prefix
+                    )
+
                 pymol_reference_pdb = os.path.join(self._motif_pdb)
 
                 pu.motif_scaffolding_pymol_write(
@@ -925,8 +989,6 @@ class Evaluator:
                     motif_json=os.path.join(self._result_dir, 'motif_info.json'),
                     save_path=os.path.join(self._result_dir, f'{prefix}_pymol_session.pse')
                     )   
-
-
 
 
 @hydra.main(version_base=None, config_path="../../config",
@@ -941,14 +1003,14 @@ def run(conf: DictConfig) -> None:
     # Perform fixed backbone design and forward folding
     print('Starting refolding for motif-scaffolding task......')
     start_time = time.time()
-    refolder = Refolder(conf)
+    refolder = MotifRefolder(conf)
     refolder.run_sampling()
     elapsed_time = time.time() - start_time
     print(f"Refolding finished in {elapsed_time:.2f}s.")
 
     # Perform analysis on outputs
     start_time = time.time()
-    evaluator = Evaluator(conf)
+    evaluator = MotifEvaluator(conf)
     evaluator.run_evaluation()
     elapsed_time = time.time() - start_time
     print(f'Evaluation finished in {elapsed_time:.2f}s. Voila!')
