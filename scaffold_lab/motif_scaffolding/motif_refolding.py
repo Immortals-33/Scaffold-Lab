@@ -258,7 +258,6 @@ class MotifRefolder:
             
             # Handle redesigned positions
             self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
-            _, _, fixed_idx_for_mpnn = au.modified_introduce_redesign_positions(motif_indices, redesign_info, contig)
 
             if redesign_info is not None:
                 self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
