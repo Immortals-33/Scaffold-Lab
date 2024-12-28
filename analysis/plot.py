@@ -183,16 +183,21 @@ def plot_novelty_distribution(
     prefix: Literal['esm', 'af2'] = 'esm',
     dpi: Union[int, float] = 800
     ) -> str:
-
+    if not os.path.exists(input):
+        log.warning(f"Input file {input} does not exist. This will not affect the successful counts")
+        return None
     results = pd.read_csv(input) if isinstance(input, (str or Path)) else input
 
     fig, ax_main = plt.subplots(figsize=(10, 6))
     
     ax_main.set_xlabel('Novelty (pdbTM) Among Successful Scaffolds', fontweight='bold', fontsize=16, labelpad=15)
     ax_main.hist(results['pdbTM'], color='#95C991', alpha=0.6, density=True, edgecolor='black')
-    novelty_kde = gaussian_kde(results['pdbTM'])
-    x_novelty = np.linspace(results['pdbTM'].min(), results['pdbTM'].max(), 100)
-    ax_main.fill_between(x_novelty, novelty_kde(x_novelty), color='#95C991', lw=1.5, alpha=0.3)
+    try:
+        novelty_kde = gaussian_kde(results['pdbTM'])
+        x_novelty = np.linspace(results['pdbTM'].min(), results['pdbTM'].max(), 100)
+        ax_main.fill_between(x_novelty, novelty_kde(x_novelty), color='#95C991', lw=1.5, alpha=0.3)
+    except:
+        log.warning("Failed to plot KDE curve for novelty distribution. Not a critical issue.")
     ax_main.spines['top'].set_visible(False)
     ax_main.spines['right'].set_visible(False)
     ax_main.get_yaxis().set_visible(False)
