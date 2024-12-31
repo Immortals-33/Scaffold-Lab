@@ -245,8 +245,13 @@ class MotifRefolder:
             
             # Save outputs
             backbone_dir = os.path.join(self._output_dir, f'{backbone_name}_{sample_num}')
-            if os.path.exists(backbone_dir):
-                self._log.warning(f'Backbone {backbone_name}_{sample_num} already existed, pass then.')
+            if "ESMFold" in self._forward_folding:
+                summary_fn = os.path.join(backbone_dir, 'self_consistency/esm_eval_results.csv')
+            else:
+                assert 'AlphaFold2' in self._forward_folding
+                summary_fn = os.path.join(backbone_dir, 'self_consistency/af2_eval_results.csv')
+            if os.path.exists(summary_fn):
+                self._log.warning(f'Backbone {backbone_name}_{sample_num} results already exist. Continuing...')
                 continue
 
             os.makedirs(backbone_dir, exist_ok=True)
