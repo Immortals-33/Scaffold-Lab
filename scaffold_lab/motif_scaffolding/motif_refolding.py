@@ -973,12 +973,11 @@ class MotifEvaluator:
                     prefix=prefix
                 )
 
-                if len(os.listdir(successful_backbone_dir)) >= 5:
-                    pu.plot_novelty_distribution(
-                        input=os.path.join(self._result_dir, f"{prefix}_success_novelty_results.csv"),
-                        save_path=self._result_dir,
-                        prefix=prefix
-                    )
+                pu.plot_novelty_distribution(
+                    input=os.path.join(self._result_dir, f"{prefix}_success_novelty_results.csv"),
+                    save_path=self._result_dir,
+                    prefix=prefix
+                )
 
                 pymol_reference_pdb = os.path.join(self._motif_pdb)
 
