@@ -768,8 +768,15 @@ class MotifEvaluator:
         # Hardware resources
         if self._eval_conf.foldseek_cores_for_pdbTM != "None":
             self._num_cpu_cores = self._eval_conf.foldseek_cores_for_pdbTM
+            self._log.info(f"""You're using {self._num_cpu_cores} for Foldseek-search.
+            You can set this value to `None` in configuration if you want to try maximizing your CPU utility
+            to speed up evaluation process.""")
         else:
             self._num_cpu_cores = os.cpu_count()
+            self._log.info(f"""Detecting {self._num_cpu_cores}, trying to maximize CPU utility for Foldseek-search.
+            If you're using multiple GPUs and detecting slow evaluation process,
+            it is recommend to set `evaluation.foldseek_cores.for_pdbTM` in configuration.
+            """)
 
         # Merge results into one csv file
         if 'ESMFold' in self.folding_method and 'AlphaFold2' in self.folding_method:
@@ -909,10 +916,11 @@ class MotifEvaluator:
             novelty_values = [cluster_info["mean_novelty"] for cluster_info in clusters.values()]
             weighted_novelty = sum(novelty_values) / len(novelty_values)
 
-            assert len(os.listdir(unique_backbones_dir)) == len(novelty_values), f"""
+            if len(os.listdir(unique_backbones_dir)) != len(novelty_values):
+                self._log.warning(f"""
             Incompatible numbers of clusters{len(os.listdir(unique_backbones_dir))} 
             and number of novelty results {len(novelty_values)}, please have a check!
-            """
+            """)
 
             novelty_score = 1 - weighted_novelty
             max_novelty = results_with_novelty["pdbTM"].min()
