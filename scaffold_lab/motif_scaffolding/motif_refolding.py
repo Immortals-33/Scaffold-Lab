@@ -251,7 +251,7 @@ class MotifRefolder:
                 assert 'AlphaFold2' in self._forward_folding
                 summary_fn = os.path.join(backbone_dir, 'self_consistency/af2_eval_results.csv')
             if os.path.exists(summary_fn):
-                self._log.warning(f'Backbone {backbone_name}_{sample_num} results already exist. Continuing...')
+                self._log.warning(f'Backbone {backbone_name}_{sample_num} results already exists. Continuing...')
                 continue
 
             os.makedirs(backbone_dir, exist_ok=True)
@@ -836,10 +836,9 @@ class MotifEvaluator:
             foldseek_path=self._foldseek_path,
         )
         self._log.info(
-            f"Diversity Calculation for {prefix} finished.\n"
-            f"Total designable backbones: {diversity['Samples']}\n"
-            f"Unique designable backbones: {diversity['Clusters']}\n"
-            f"Diversity: {diversity['Diversity']}"
+            f"Diversity Calculation for {prefix} finished.\t"
+            f"Designable scaffolds: {diversity['Samples']}\t"
+            f"Unique solutions: {diversity['Clusters']}"
         )
 
         # Create unique designable backbone directory
@@ -887,14 +886,19 @@ class MotifEvaluator:
         prefix: str = "esm"
         ):
         """Run novelty evaluation."""
+        success_results = complete_results[complete_results["Success"] == True]
+        novelty_csv_path = os.path.join(self._result_dir, f"{prefix}_novelty_results.csv")
         if os.listdir(successful_backbone_dir):
-            success_results = complete_results[complete_results["Success"] == True]
-            results_with_novelty = nu.calculate_novelty(
-                input_csv=success_results,
-                foldseek_database_path=self._eval_conf.foldseek_database,
-                max_workers=self._num_cpu_cores,
-                cpu_threshold=75.0,
-            )
+            if not os.path.exists(novelty_csv_path): 
+                results_with_novelty = nu.calculate_novelty(
+                    input_csv=success_results,
+                    foldseek_database_path=self._eval_conf.foldseek_database,
+                    max_workers=self._num_cpu_cores,
+                    cpu_threshold=75.0,
+                )
+            else:
+                results_with_novelty = pd.read_csv(novelty_csv_path)
+                self._log.info(f"Novelty results already exist. Continuing...")
 
             unique_backbones = results_with_novelty[results_with_novelty["sample_idx"] == 1]
             novelty_lookup = dict(zip(unique_backbones["backbone_path"].apply(os.path.basename), unique_backbones["pdbTM"]))
@@ -929,7 +933,6 @@ class MotifEvaluator:
                 f"Novelty score (1 - pdbTM) among successful backbones weighted by number of clusters: {novelty_score:.3f}\n"
                 f"The most novel designable backbone has a pdbTM of {max_novelty:.3f}"
             )
-            novelty_csv_path = os.path.join(self._result_dir, f"{prefix}_success_novelty_results.csv")
             results_with_novelty.to_csv(novelty_csv_path, index=False)
         else:
             self._log.info(f"No successful backbone was found for {prefix}. Skipping novelty calculation.")

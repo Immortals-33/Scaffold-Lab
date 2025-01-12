@@ -929,7 +929,8 @@ def write_summary_results(
         ["Evaluated Protein", os.path.basename(os.path.normpath(stored_path))],
         ["Number of Unique Solutions (Unique designable scaffolds)", number_of_solutions],
         ["Novelty (Weighted across each cluster)", novelty_value],
-        ["Success Rate", f"{designable_fraction}%"]
+        ["Success Rate", f"{designable_fraction}%"],
+        ["Number of Scaffolds Evaluated", f"{pdb_count}"]
     ]
     formatted_table = tabulate(summary_table, tablefmt="grid", numalign="center")
 

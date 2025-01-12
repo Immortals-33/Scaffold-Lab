@@ -47,6 +47,6 @@ evaluation:
   assist_protein: ./tools/assistant_protein/assist_protein.pdb
   foldseek_path: None
   foldseek_database: ???
-  foldseek_cores_for_pdbTM: 4
+  foldseek_cores_for_pdbTM: 8
   tmscore_threshold: 0.6 # `tmscore-threshold` parameter for Foldseek-Cluster
   visualize: True
