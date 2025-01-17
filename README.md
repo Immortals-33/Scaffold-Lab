@@ -165,12 +165,31 @@ This csv file has the following fields for each scaffold:
 * **Redesigned positions:** This part indicates which positions to be redesigned in the **reference proteins**, e.g.`A3-5;A33;A36` in this case indicates residues 3, 4, 5, 33, and 36 of chain A in **_2KL8_**. Different redesigned positions are separated by **semi-colons**; if the positions are continuous, then connected by **hyphens**; always starts with an uppercase chain letter.
 * **Segment order**: The order of multiple motif segments in backbones. This may be used when each of the motif segments its own chain in the reference pdb file.
 
-###   Specify through PDB Header
+####   Specify through PDB Header
 
 The users can specify the contig string in the **“classification”** part of the PDB header. Here we have two ways for contig parsing:
 
 * **A complete contig string:** Should be followed the format mentioned above with two or three parts separated by commas. The native PDB ID and motif placement are always necessary, and the part of redesigned positions is additionally provided if there’s a need. 
 * For specification of redesigned positions, another straightforward way is to **index them by the “UNK” residues**. The logic here is, if the code found the contig string just have two parts, it will automatically look for “UNK” residues inside the PDB file and specify them as positions to be redesigned.
+
+####   Output Visualization
+
+We provide optional visualization outputs for motif-scaffolding tasks. In brief, several figures and sessions will be created. We next demonstrate the output items using a motif case from PDB *6E6R*:
+
+* **Designability Metrics**: The sc-RMSD and motif-RMSD of each evaluated scaffold.
+<p align="center">
+  <img src="assets/esm_metric_distribution.png" alt="Designability metric">
+</p>
+
+* **Novelty Metric**: The TM-scores of evaluated scaffolds against PDB (pdbTM). The purple vertical dashed lines denote 25%, 50% and 75% quartile values across the whole scaffold sets.
+<p align="center">
+  <img src="assets/esm_novelty_distribution.png" alt="Novelty metric">
+</p>
+
+* **Unique Successful Scaffolds**: All unique successful scaffolds in PyMol. The orange segment displayed within the first grid is the reference motif to be mimicked, followed by unique solutions with green parts and blue parts correspond to motifs and scaffolds excluding motifs respectively.
+<p align="center">
+  <img src="assets/demo_pymol.png" alt="PyMol session file">
+</p>
 
 ### Customize Methods for Structure Prediction
 
