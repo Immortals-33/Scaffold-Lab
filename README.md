@@ -177,19 +177,28 @@ The users can specify the contig string in the **“classification”** part of 
 We provide optional visualization outputs for motif-scaffolding tasks. In brief, several figures and sessions will be created. We next demonstrate the output items using a motif case from PDB *6E6R*:
 
 * **Designability Metrics**: The sc-RMSD and motif-RMSD of each evaluated scaffold.
-<p align="center">
-  <img src="assets/esm_metric_distribution.png" alt="Designability metric">
-</p>
+<div align="center">
+  <div style="display: flex; justify-content: center; gap: 20px;">
+    <div style="text-align: center;">
+      <img src="assets/esm_metric_distribution.png" alt="Designability metric" style="width: 200px;">
+      <p style="font-weight: normal; font-style: italic;">Designability Metrics</p>
+    </div>
+    <div style="text-align: center;">
+      <img src="assets/esm_novelty_distribution.png" alt="Novelty metric" style="width: 200px;">
+      <p style="font-weight: normal; font-style: italic;">Novelty Metrics</p>
+    </div>
+  </div>
+</div>
 
 * **Novelty Metric**: The TM-scores of evaluated scaffolds against PDB (pdbTM). The purple vertical dashed lines denote 25%, 50% and 75% quartile values across the whole scaffold sets.
-<p align="center">
-  <img src="assets/esm_novelty_distribution.png" alt="Novelty metric">
-</p>
 
 * **Unique Successful Scaffolds**: All unique successful scaffolds in PyMol. The orange segment displayed within the first grid is the reference motif to be mimicked, followed by unique solutions with green parts and blue parts correspond to motifs and scaffolds excluding motifs respectively.
-<p align="center">
-  <img src="assets/demo_pymol.png" alt="PyMol session file">
-</p>
+<div align="center">
+  <div style="text-align: center;">
+    <img src="assets/demo_pymol.png" alt="PyMol session file" style="width: 300px;">
+    <p style="font-weight: normal; font-style: italic;">An Example PyMol Session File</p>
+  </div>
+</div>
 
 ### Customize Methods for Structure Prediction
 
