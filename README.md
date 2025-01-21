@@ -180,12 +180,7 @@ We provide optional visualization outputs for motif-scaffolding tasks. In brief,
 <div align="center">
   <div style="display: flex; justify-content: center; align-items: center; gap: 100px;">
     <div style="text-align: center;">
-      <img src="assets/esm_metric_distribution.png" alt="Designability metric" style="width: 400px;">
-      <p style="font-weight: bold;"><i>Designability Metric</i></p>
-    </div>
-    <div style="text-align: center;">
-      <img src="assets/esm_novelty_distribution.png" alt="Novelty metric" style="width: 400px;">
-      <p style="font-weight: bold;"><i>Novelty Metric</i></p>
+      <img src="assets/esm_metric_distribution.png" alt="Designability Metrics" style="width: 400px;"><p style="font-weight: bold;"><i>Designability Metric</i></p><div style="text-align: center;"><img src="assets/esm_novelty_distribution.png" alt="Novelty" style="width: 400px;"><p style="font-weight: bold;"><i>Novelty Metric</i></p>
     </div>
   </div>
 </div>
