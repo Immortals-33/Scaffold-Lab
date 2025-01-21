@@ -178,14 +178,14 @@ We provide optional visualization outputs for motif-scaffolding tasks. In brief,
 
 * **Designability Metrics**: The sc-RMSD and motif-RMSD of each evaluated scaffold.
 <div align="center">
-  <div style="display: flex; justify-content: center; gap: 20px;">
+  <div style="display: flex; justify-content: center; align-items: center; gap: 100px;">
     <div style="text-align: center;">
-      <img src="assets/esm_metric_distribution.png" alt="Designability metric" style="width: 200px;">
-      <p style="font-weight: normal; font-style: italic;">Designability Metrics</p>
+      <img src="assets/esm_metric_distribution.png" alt="Designability metric" style="width: 400px;">
+      <p style="font-weight: bold;"><i>Designability Metric</i></p>
     </div>
     <div style="text-align: center;">
-      <img src="assets/esm_novelty_distribution.png" alt="Novelty metric" style="width: 200px;">
-      <p style="font-weight: normal; font-style: italic;">Novelty Metrics</p>
+      <img src="assets/esm_novelty_distribution.png" alt="Novelty metric" style="width: 400px;">
+      <p style="font-weight: bold;"><i>Novelty Metric</i></p>
     </div>
   </div>
 </div>
@@ -195,8 +195,8 @@ We provide optional visualization outputs for motif-scaffolding tasks. In brief,
 * **Unique Successful Scaffolds**: All unique successful scaffolds in PyMol. The orange segment displayed within the first grid is the reference motif to be mimicked, followed by unique solutions with green parts and blue parts correspond to motifs and scaffolds excluding motifs respectively.
 <div align="center">
   <div style="text-align: center;">
-    <img src="assets/demo_pymol.png" alt="PyMol session file" style="width: 300px;">
-    <p style="font-weight: normal; font-style: italic;">An Example PyMol Session File</p>
+    <img src="assets/demo_pymol.png" alt="PyMol session file" style="width: 800px;">
+    <p style="font-weight: bold;"><i>Example PyMol Session File</i></p>
   </div>
 </div>
 
