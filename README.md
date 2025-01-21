@@ -178,19 +178,19 @@ We provide optional visualization outputs for motif-scaffolding tasks. In brief,
 
 * **Designability Metrics**: The sc-RMSD and motif-RMSD of each evaluated scaffold.
 <div align="center">
-  <div style="display: flex; justify-content: center; gap: 40px;">
-    <div style="text-align: center;">
-      <img src="assets/esm_metric_distribution.png" alt="Designability metric" style="width: 400px;">
-      <p style="font-weight: normal; font-style: italic;">Designability Metrics</p>
-    </div>
-    <div style="text-align: center;">
-      <img src="assets/esm_novelty_distribution.png" alt="Novelty metric" style="width: 400px;">
-      <p style="font-weight: normal; font-style: italic;">Novelty Metric</p>
-    </div>
+  <div style="text-align: center;">
+    <img src="assets/esm_metric_distribution.png" alt="Designability Metrics" style="width: 500px;">
+    <p style="font-weight: bold;"><i>Designability Metrics</i></p>
   </div>
 </div>
 
 * **Novelty Metric**: The TM-scores of evaluated scaffolds against PDB (pdbTM). The purple vertical dashed lines denote 25%, 50% and 75% quartile values across the whole scaffold sets.
+<div align="center">
+  <div style="text-align: center;">
+    <img src="assets/esm_novelty_distribution.png" alt="Novelty Metrics" style="width: 500px;">
+    <p style="font-weight: bold;"><i>Novelty Metric (pdbTM). The purple vertical dashed lines denote 25%, 50% and 75% quartile values across the whole scaffold sets.</i></p>
+  </div>
+</div>
 
 * **Unique Successful Scaffolds**: All unique successful scaffolds in PyMol. The orange segment displayed within the first grid is the reference motif to be mimicked, followed by unique solutions with green parts and blue parts correspond to motifs and scaffolds excluding motifs respectively.
 <div align="center">
