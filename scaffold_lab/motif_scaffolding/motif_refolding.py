@@ -115,6 +115,7 @@ class MotifRefolder:
             os.environ['PATH'] = colabfold_path + ":" + current_path
             if self.device == 'cpu':
                 self._log.info(f"You're running AlphaFold2 on {self.device}.")
+
         # Set-up directories
         output_dir = self._infer_conf.output_dir
 
@@ -268,6 +269,7 @@ class MotifRefolder:
                 self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
             else:
                 self._log.info(f'No positions need to be redesigned.')
+
             # Will return standard mapping list and fixed positions if no residue within motifs need to be redesigned
             redesign_mapping_dict, redesign_position_list, fixed_idx_for_mpnn = au.motif_mapping(
                 motif_indices=motif_indices, 
@@ -319,8 +321,8 @@ class MotifRefolder:
             shutil.copy(pdb_path, os.path.join(
                 sc_output_dir, os.path.basename(pdb_path)))
 
-
-            if backbone_name == '6VW1':
+            
+            if backbone_name == '6VW1': # Complex evaluation, not implemented yet
                 _ = self.run_self_consistency(
                 decoy_pdb_dir=sc_output_dir,
                 reference_pdb_path=pdb_path,
@@ -341,6 +343,8 @@ class MotifRefolder:
                     sample_contig=design_contig
                 )
             self._log.info(f'Done sample: {pdb_path}')
+
+        # Information for PyMol visualization
         output_json_path = os.path.join(self._output_dir, 'motif_info.json')
         with open(output_json_path, 'w') as json_file:
             json.dump(motif_info_dict, json_file, indent=4, separators=(",", ": "), sort_keys=True)
@@ -668,7 +672,6 @@ class MotifRefolder:
             joint_results.to_csv(os.path.join(decoy_pdb_dir, 'joint_eval_results.csv'), index=False)
 
 
-
     def run_esmfold(self, sequence: str, save_path: Union[str, Path]):
         """
         Run ESMFold on sequence.
@@ -735,6 +738,7 @@ class MotifRefolder:
                 if num_tries_af2 > 10:
                     raise e
 
+
 class MotifEvaluator:
 
     def __init__(
@@ -788,11 +792,11 @@ class MotifEvaluator:
 
 
     def _process_results(self, prefix: str):
-        """Process results for a single folding method."""
+        """Process results for a single forward folding method (ESMFold / AF2)."""
         results_df, pdb_count = au.csv_merge(root_dir=self._result_dir, prefix=prefix)
 
         # Analyze outputs
-        complete_results, summary_results, designability_count, backbones = au.analyze_success_rate(
+        complete_results, summary_results, designability_count, backbones, closest_contender = au.analyze_success_rate(
             merged_data=results_df, group_mode="all", prefix=prefix
         )
 
@@ -811,7 +815,16 @@ class MotifEvaluator:
         ]
         summary_results.to_csv(summary_csv_path, columns=summary_column_order, index=False)
 
-        return complete_results, backbones, designability_count, pdb_count
+        # Auxiliary metrics
+        if not closest_contender is None:
+            auxiliary_csv_path = os.path.join(self._result_dir, f"{prefix}_auxiliary_results.csv")
+            closest_contender.to_csv(auxiliary_csv_path, index=False)
+            closest_scaffold_dir = os.path.join(self._result_dir, f"{prefix}_closest_contender")
+            closest_contender_path = closest_contender['backbone_path'].iloc[0]
+            os.makedirs(closest_scaffold_dir, exist_ok=True)
+            shutil.copy(closest_contender_path, os.path.join(closest_scaffold_dir, os.path.basename(closest_contender_path)))
+
+        return complete_results, backbones, designability_count, pdb_count, closest_contender
 
 
     def _evaluate_diversity(
@@ -819,7 +832,7 @@ class MotifEvaluator:
         backbones: set, 
         prefix: str
         ):
-        """Run diversity evaluation."""
+        """Run diversity evaluation with Foldseek-Cluster."""
         successful_backbone_dir = os.path.join(self._result_dir, f"{prefix}_successful_backbones")
         os.makedirs(successful_backbone_dir, exist_ok=True)
 
@@ -885,7 +898,7 @@ class MotifEvaluator:
         clusters: Dict,
         prefix: str = "esm"
         ):
-        """Run novelty evaluation."""
+        """Run novelty evaluation with Foldseek-Search."""
         success_results = complete_results[complete_results["Success"] == True]
         novelty_csv_path = os.path.join(self._result_dir, f"{prefix}_novelty_results.csv")
         if os.listdir(successful_backbone_dir):
@@ -952,7 +965,7 @@ class MotifEvaluator:
             prefix = "esm" if method == "ESMFold" else "af2"
 
             # Process results and calculate diversity and novelty
-            complete_results, backbones, designability_count, pdb_count = self._process_results(prefix)
+            complete_results, backbones, designability_count, pdb_count, closest_contender = self._process_results(prefix)
             diversity, successful_backbone_dir, unique_clusters, clusters_information = self._evaluate_diversity(backbones, prefix)
             novelty_score = self._evaluate_novelty(
                 complete_results=complete_results,
@@ -966,6 +979,14 @@ class MotifEvaluator:
             novelty_results[prefix] = novelty_score
             designability_counts[prefix] = designability_count
             pdb_counts[prefix] = pdb_count
+
+            # Auxiliary metrics
+            au.write_auxiliary_metrics(
+                stored_path=self._result_dir,
+                auxiliary_results=closest_contender,
+                prefix=prefix
+            )
+
 
         # Write summary outputs
         for prefix in diversity_results.keys():
@@ -1002,7 +1023,19 @@ class MotifEvaluator:
                     reference_pdb=pymol_reference_pdb,
                     motif_json=os.path.join(self._result_dir, 'motif_info.json'),
                     save_path=os.path.join(self._result_dir, f'{prefix}_pymol_session.pse')
-                    )   
+                    )
+
+                # Auxiliary metrics
+                closest_contender_path = os.path.join(self._result_dir, f'{prefix}_closest_contender')
+                if os.listdir(closest_contender_path):
+                    pu.motif_scaffolding_pymol_write(
+                        unique_designable_backbones=closest_contender_path,
+                        reference_pdb=pymol_reference_pdb,
+                        motif_json=os.path.join(self._result_dir, 'motif_info.json'),
+                        save_path=os.path.join(closest_contender_path, f'{prefix}_closest_contender.pse')
+                    )
+                
+
 
 
 @hydra.main(version_base=None, config_path="../../config",

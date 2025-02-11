@@ -17,6 +17,7 @@ plt.rcParams['font.sans-serif'] = 'Arial'
 plt.rcParams['font.family'] = 'Arial'
 mpl.rcParams['lines.linewidth'] = 1
 
+
 def motif_scaffolding_pymol_write(
     unique_designable_backbones: Union[str, Path],
     reference_pdb: Union[str, Path],

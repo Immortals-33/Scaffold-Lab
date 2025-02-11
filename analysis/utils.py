@@ -804,7 +804,16 @@ def analyze_success_rate(
     "backbone_motif_rmsd", "mpnn_score", "tm_score"], inplace=False)
     #print(f'summary_data.columns: {set(summary_data.columns)}\nmerged_data.columns: {set(merged_data.columns)}\n')
 
-    return merged_data, summary_data, success_count, successful_backbones
+    # Find closest contender
+    designable_scaffolds = merged_data[merged_data["rmsd"] < 2]
+    if not designable_scaffolds.empty:
+        closest_contender = designable_scaffolds.loc[designable_scaffolds["motif_rmsd"].idxmin()]
+        closest_contender_df = closest_contender.to_frame().T
+    else:
+        closest_contender = None
+
+
+    return merged_data, summary_data, success_count, successful_backbones, closest_contender_df
 
 
 def _process_results(self, prefix: str):
@@ -942,6 +951,39 @@ def write_summary_results(
         #f.write(f'Number of unique solutions (Unique designable scaffolds): {number_of_solutions}\n')
         #f.write(f'Novelty (Weighted across each cluster): {novelty_value}\n')
         #f.write(f'Success rate: {designable_fraction}%\n')
+
+
+def write_auxiliary_metrics(
+    stored_path: Union[str, Path],
+    auxiliary_results: Union[str, Path, pd.DataFrame],
+    prefix: Optional[str] = None
+) -> None:
+
+    if not auxiliary_results is None:
+        closest_motif_rmsd = auxiliary_results['motif_rmsd'].iloc[0]
+        closest_contender_designability = auxiliary_results['rmsd'].iloc[0]
+        closest_contender_scaffold = auxiliary_results['backbone_path'].iloc[0]
+        closest_contender_refold = auxiliary_results['sample_path'].iloc[0]
+    else:
+        closest_motif_rmsd = "\\"
+        closest_contender_designability = "\\"
+        closest_contender_scaffold = "\\"
+        closest_contender_refold = "\\"
+
+    # Formatting
+    summary_table = [
+        ["Evaluated Protein", os.path.basename(os.path.normpath(stored_path))],
+        ["Closest Contender (Scaffold)", closest_contender_scaffold],
+        ["Closest Contender (Refolded Structure)", closest_contender_refold],
+        ["Closest Motif-RMSD (Å)", closest_motif_rmsd],
+        ["Scaffold RMSD of Closest Contender (Å)", closest_contender_designability],
+    ]
+    formatted_table = tabulate(summary_table, tablefmt="grid", numalign="center")
+
+    with open (os.path.join(stored_path, f'{prefix}_auxiliary_metrics.txt'), 'w') as f:
+        f.write('----------Auxiliary Metrics----------\n\n')
+        f.write(f'The following are auxiliary metrics for {os.path.abspath(stored_path)}:\n\n')
+        f.write(formatted_table + "\n")
 
 
 def parse_contig(contig: str) -> List[Tuple[str, int, int]]:
