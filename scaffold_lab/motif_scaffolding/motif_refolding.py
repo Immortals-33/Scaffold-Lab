@@ -817,11 +817,13 @@ class MotifEvaluator:
 
         # Auxiliary metrics
         if not closest_contender is None:
-            auxiliary_csv_path = os.path.join(self._result_dir, f"{prefix}_auxiliary_results.csv")
-            closest_contender.to_csv(auxiliary_csv_path, index=False)
             closest_scaffold_dir = os.path.join(self._result_dir, f"{prefix}_closest_contender")
-            closest_contender_path = closest_contender['backbone_path'].iloc[0]
             os.makedirs(closest_scaffold_dir, exist_ok=True)
+            
+            closest_contender_csv_path = os.path.join(closest_scaffold_dir, f"{prefix}_closest_contender.csv")
+            closest_contender.to_csv(closest_contender_csv_path, index=False)
+            
+            closest_contender_path = closest_contender['backbone_path'].iloc[0]
             shutil.copy(closest_contender_path, os.path.join(closest_scaffold_dir, os.path.basename(closest_contender_path)))
 
         return complete_results, backbones, designability_count, pdb_count, closest_contender

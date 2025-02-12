@@ -200,6 +200,11 @@ We provide optional visualization outputs for motif-scaffolding tasks. In brief,
   </div>
 </div>
 
+####   Auxiliary Metrics
+
+Aside from main metrics in `summary.txt` files, a set of auxiliary metrics storing in `auxiliary_metrics.txt` files:
+* **Closest Contender**: For each case, we additionally provide information for the designable scaffold best mimicking the corresponding motif, namely *closest contender*. This gives users a closer look on the optimal design outcomes of the method for a particular motif no matter it is success or not, which would be informative for both method development and candidates selection. The scaffold PDB file along with the comparison to native scaffold could be found in the folder named `{folding_method}_closest_contender`. 
+
 ### Customize Methods for Structure Prediction
 
 We support both AlphaFold2 (single-sequence version) and ESMFold for structure prediction during refolding. 

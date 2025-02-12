@@ -72,7 +72,6 @@ def motif_scaffolding_pymol_write(
 
     if os.listdir(unique_designable_backbones):
         for i in os.listdir(unique_designable_backbones):
-            print(i)
             if i.endswith(".pdb"):
                 name = i.split(".")[0]
                 cmd.load(f"{unique_designable_backbones}/{i}",name)
