@@ -16,7 +16,7 @@ inference:
   benchmark_set: None
   
   # Setting of ProteinMPNN
-  CA_only: True
+  CA_only: False
   hide_GPU_from_pmpnn: True
   force_motif_AA_type: False
 

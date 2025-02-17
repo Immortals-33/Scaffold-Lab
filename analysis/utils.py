@@ -1272,3 +1272,100 @@ def check_motif_AA_type(
     else:
         log.info(f"Residue types in designed backbone are consistent to standard motifs, continue.")
         return True
+
+
+# ------------------------Utils for Unconditional Generation--------------------
+
+def analyze_success_rate_uncond(
+        merged_data: Union[str, Path, pd.DataFrame],
+        group_mode: str = "all",
+        prefix: str = "esm",
+        metric: str = 'tm_score',
+        threshold: Optional[Union[str, float, int]]=None,
+    ):
+
+    # Define success criteria for each sample
+    merged_data = pd.read_csv(merged_data) if isinstance(merged_data, str) or isinstance(merged_data, Path) else merged_data
+
+    #merged_data['seq_hit'] = (merged_data['rmsd'] < 2) & (merged_data['motif_rmsd'] < 1)
+    if metric == 'rmsd':
+        if threshold is not None:
+            merged_data['seq_hit'] = (merged_data['rmsd'] < threshold)
+        else:
+            merged_data['seq_hit'] = (merged_data['rmsd'] < 2.0)
+    elif metric == 'tm_score':
+        if threshold is not None:
+            merged_data['seq_hit'] = (merged_data['tm_score'] > threshold)
+        else:
+            merged_data['seq_hit'] = (merged_data['tm_score'] > 0.5)
+
+    # Group by 'backbone_path' and aggregate the success criteria
+    group_success = merged_data.groupby('backbone_path').agg({
+        'seq_hit': 'any',
+    }).rename(columns={
+        'seq_hit': 'Success',
+    })
+
+    # Join the aggregated results back to the original DataFrame
+    merged_data = merged_data.merge(group_success, on='backbone_path', how='left')
+
+    successful_backbones = set()
+    if group_mode == 'all':
+        success_count = merged_data[merged_data['Success'] == True]['backbone_path'].nunique()
+        successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
+    elif group_mode == 'PDB id':
+        success_count = dict.fromkeys(merged_data['PDB id'].unique(), 0)
+        success_per_pdb = merged_data[merged_data['Success'] == True].groupby('PDB id')['backbone_path'].nunique()
+        success_count.update(success_per_pdb.to_dict())
+
+        successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
+
+    #print(f'merged_data.columns: {set(merged_data.columns)}')
+
+    summary_data = merged_data.drop(columns=["header", "mpnn_score"], inplace=False)
+    #print(f'summary_data.columns: {set(summary_data.columns)}\nmerged_data.columns: {set(merged_data.columns)}\n')
+
+    # Find best contender
+    designable_scaffolds = merged_data[merged_data["rmsd"] < 2] if metric == 'rmsd' else merged_data[merged_data["tm_score"] > 0.5]
+    if not designable_scaffolds.empty:
+        best_contender = designable_scaffolds.loc[designable_scaffolds["rmsd"].idxmin()] if metric == 'rmsd' else designable_scaffolds.loc[designable_scaffolds["tm_score"].idxmax()]
+        best_contender_df = best_contender.to_frame().T
+    else:
+        best_contender = None
+
+
+    return merged_data, summary_data, success_count, successful_backbones, best_contender_df
+
+
+def write_auxiliary_metrics_uncond(
+    stored_path: Union[str, Path],
+    auxiliary_results: Union[str, Path, pd.DataFrame],
+    prefix: Optional[str] = None
+) -> None:
+
+    if not auxiliary_results is None:
+        best_contender_rmsd = auxiliary_results['rmsd'].iloc[0]
+        best_contender_tm_score = auxiliary_results['tm_score'].iloc[0]
+        best_contender_scaffold = auxiliary_results['backbone_path'].iloc[0]
+        best_contender_refold = auxiliary_results['sample_path'].iloc[0]
+    else:
+        best_contender_rmsd = "\\"
+        best_contender_tm_score = "\\"
+        best_contender_scaffold = "\\"
+        best_contender_refold = "\\"
+
+    # Formatting
+    summary_table = [
+        ["Evaluated Protein Set", os.path.basename(os.path.normpath(stored_path))],
+        ["Best Contender (Scaffold)", best_contender_scaffold],
+        ["Best Contender (Refolded Structure)", best_contender_refold],
+        ["Scaffold TM-score of Best Contender", best_contender_tm_score],
+        ["Scaffold RMSD of Best Contender (Å)", best_contender_rmsd],
+    ]
+    formatted_table = tabulate(summary_table, tablefmt="grid", numalign="center")
+
+    with open (os.path.join(stored_path, f'{prefix}_auxiliary_metrics.txt'), 'w') as f:
+        f.write('----------Auxiliary Metrics----------\n\n')
+        f.write(f'The following are auxiliary metrics for {os.path.abspath(stored_path)}:\n\n')
+        f.write(formatted_table + "\n")
+

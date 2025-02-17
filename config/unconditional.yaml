@@ -1,4 +1,4 @@
-# Configuration for self-consitency test on running ProteinMPNN and ESMFold.
+# Configuration for running self-consistency evaluation on unconditional generation.
 defaults:
   - override hydra/launcher: joblib
 
@@ -7,25 +7,27 @@ inference:
   gpu_id: 0  # CUDA GPU to use
   seed: 33
 
-  # Directory of backbones, ProteinMPNN, and outputs.
+  # Directory of software, weights, and outputs.
   backbone_pdb_dir: ./demo/unconditional/
   pmpnn_dir: ./tools/ProteinMPNN/
-  output_dir: ./outputs/
+  output_dir: ./outputs/unconditional/
   
   # Setting of ProteinMPNN
   CA_only: False
+  hide_GPU_from_pmpnn: True
+
 
   samples:
     # Number of ESMFold samples per backbone sample.
     seq_per_sample: 10
-    mpnn_batch_size: 1
-    sort_by_score: True
+    mpnn_batch_size: 10
+    sort_by_score: False
 
   predict_method: [ESMFold]
 
   af2:
-    executive_colabfold_path: path/to/your/executable_localcolabfold
-    recycle: 10
+    executive_colabfold_path: path_to_your_localcolabfold
+    recycle: 3
     seed: 33
     model_type: alphafold2_ptm # {auto, alphafold2, alphafold2_multimer_{v1-v3}, deepfold_v1}
     num_models: 1 # {1,2,3,4,5}
@@ -33,3 +35,12 @@ inference:
     num_relax: 3
     use_gpu_relax: False
     rank: ptm # {auto, plddt, ptm, iptm, multimer}
+    remove_raw_outputs: True
+
+evaluation:
+  assist_protein: ./tools/assistant_protein/assist_protein.pdb
+  foldseek_path: None
+  foldseek_database: ???
+  foldseek_cores_for_pdbTM: 8
+  tmscore_threshold: 0.5 # `tmscore-threshold` parameter for Foldseek-Cluster
+  visualize: True

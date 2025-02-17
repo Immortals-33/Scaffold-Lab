@@ -216,3 +216,33 @@ def plot_novelty_distribution(
                              fontsize=12, fontweight="bold")
 
     plt.savefig(os.path.join(save_path, f'{prefix}_novelty_distribution.{save_mode}'), dpi=dpi)
+
+
+# -------------------- Unconditional Utils---------------------
+def unconditional_pymol_write(
+    unique_designable_backbones: Union[str, Path],
+    save_path: Union[str, Path],
+    design_scaffold_color: Optional[str] = "rhenium"
+    ):
+    """
+    Extract unique designable backbones, visualize them and save them into a PyMol session file.
+    """
+    # re-initialize the pymol
+    cmd.reinitialize()
+
+    if os.listdir(unique_designable_backbones):
+        for i in os.listdir(unique_designable_backbones):
+            if i.endswith(".pdb"):
+                name = i.split(".")[0]
+                cmd.load(f"{unique_designable_backbones}/{i}",name)
+                cmd.color(design_scaffold_color, name)
+
+        cmd.bg_color('white')
+        cmd.set("grid_mode",1)
+        cmd.set('ray_trace_mode', 1)
+        cmd.set('ambient', 0.5)
+
+        cmd.zoom(f"{name}")
+    else:
+        log.info(f"No successful backbones detected in {unique_designable_backbones}.")
+    cmd.save(save_path)
