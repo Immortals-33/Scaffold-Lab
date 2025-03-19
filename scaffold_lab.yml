@@ -9,6 +9,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - pymol-open-source
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=2_gnu
   - absl-py=0.15.0=pyhd3eb1b0_0
@@ -285,9 +286,9 @@ dependencies:
   - pycparser=2.21=pyhd3eb1b0_0
   - pygments=2.14.0=pyhd8ed1ab_0
   - pykerberos=1.2.1=py39h7f8727e_3
-  - pymol=2.5.5=py39he7683a9_4
-  - pymol-bundle=2.5.5=2
-  - pymol-web-examples=2.4=1
+  #- pymol=2.5.5=py39he7683a9_4
+  #- pymol-bundle=2.5.5=2
+  #- pymol-web-examples=2.4=1
   - pyopenssl=22.0.0=pyhd3eb1b0_0
   - pyparsing=3.0.9=py39h06a4308_0
   - pyqt=5.15.7=py39h6a678d5_1

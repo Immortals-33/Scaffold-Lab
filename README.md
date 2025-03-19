@@ -40,7 +40,6 @@ We present the benchmark for both unconditional generation and conditional gener
 > You can also try our notebook in Colab. This is a **beta** version where bug reports and pull requests are especially welcomed. 
 > 
 > [<img src="https://colab.research.google.com/assets/colab-badge.svg">](https://colab.research.google.com/github/Immortals-33/Scaffold-Lab/blob/main/scaffold_lab.ipynb)
->
 ***
 
 
@@ -93,6 +92,10 @@ foldseek databases PDB pdb tmp
 ```
 
 After successfully building a PDB database of Foldseek, you can save the `<foldseek_pdb_database_path>` as a record and lately specify it your foldseek database path either using config or directly by command-line usage, whose demo is provided below. 
+
+> [!NOTE]
+>
+> When specifying the path of Foldseek database, please add the **database name** after the path. For example, the Foldseek database described above is "pdb", so you should set `evaluation.foldseek_database=<foldseek_database_path>/pdb`. 
 
 </details>
 
