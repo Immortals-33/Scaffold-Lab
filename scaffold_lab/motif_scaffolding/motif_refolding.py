@@ -826,6 +826,9 @@ class MotifEvaluator:
             closest_contender_path = closest_contender['backbone_path'].iloc[0]
             shutil.copy(closest_contender_path, os.path.join(closest_scaffold_dir, os.path.basename(closest_contender_path)))
 
+        else:
+            self._log.info(f"There will not be closest contender since no designable scaffold detected.")
+
         return complete_results, backbones, designability_count, pdb_count, closest_contender
 
 

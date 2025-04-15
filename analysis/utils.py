@@ -811,6 +811,7 @@ def analyze_success_rate(
         closest_contender_df = closest_contender.to_frame().T
     else:
         closest_contender = None
+        closest_contender_df = None
 
 
     return merged_data, summary_data, success_count, successful_backbones, closest_contender_df
