@@ -93,7 +93,7 @@ foldseek databases PDB pdb tmp
 
 After successfully building a PDB database of Foldseek, you can save the `<foldseek_pdb_database_path>` as a record and lately specify it your foldseek database path either using config or directly by command-line usage, whose demo is provided below. 
 
-> [!NOTE]
+> [!NOTE]  
 >
 > When specifying the path of Foldseek database, please add the **database name** after the path. For example, the Foldseek database described above is "pdb", so you should set `evaluation.foldseek_database=<foldseek_database_path>/pdb`. 
 

@@ -819,7 +819,6 @@ class MotifEvaluator:
         if not closest_contender is None:
             closest_scaffold_dir = os.path.join(self._result_dir, f"{prefix}_closest_contender")
             os.makedirs(closest_scaffold_dir, exist_ok=True)
-            
             closest_contender_csv_path = os.path.join(closest_scaffold_dir, f"{prefix}_closest_contender.csv")
             closest_contender.to_csv(closest_contender_csv_path, index=False)
             
@@ -1032,7 +1031,7 @@ class MotifEvaluator:
 
                 # Auxiliary metrics
                 closest_contender_path = os.path.join(self._result_dir, f'{prefix}_closest_contender')
-                if os.listdir(closest_contender_path):
+                if os.path.exists(closest_contender_path) and os.listdir(closest_contender_path):
                     pu.motif_scaffolding_pymol_write(
                         unique_designable_backbones=closest_contender_path,
                         reference_pdb=pymol_reference_pdb,

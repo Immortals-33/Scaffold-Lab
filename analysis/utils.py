@@ -805,7 +805,7 @@ def analyze_success_rate(
     #print(f'summary_data.columns: {set(summary_data.columns)}\nmerged_data.columns: {set(merged_data.columns)}\n')
 
     # Find closest contender
-    designable_scaffolds = merged_data[merged_data["rmsd"] < 2]
+    designable_scaffolds = merged_data[merged_data["rmsd"] < 2.0]
     if not designable_scaffolds.empty:
         closest_contender = designable_scaffolds.loc[designable_scaffolds["motif_rmsd"].idxmin()]
         closest_contender_df = closest_contender.to_frame().T
@@ -956,7 +956,7 @@ def write_summary_results(
 
 def write_auxiliary_metrics(
     stored_path: Union[str, Path],
-    auxiliary_results: Union[str, Path, pd.DataFrame],
+    auxiliary_results: Optional[Union[str, Path, pd.DataFrame]],
     prefix: Optional[str] = None
 ) -> None:
 
