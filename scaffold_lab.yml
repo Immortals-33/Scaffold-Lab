@@ -365,4 +365,3 @@ dependencies:
       - wcwidth==0.2.13
       - wrapt==1.17.0
       - yarl==1.9.4
-        #prefix: /root/autodl-tmp/miniconda3/envs/scaffold_lab_2
