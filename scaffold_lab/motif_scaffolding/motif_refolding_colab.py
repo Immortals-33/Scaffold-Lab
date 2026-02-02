@@ -140,10 +140,12 @@ class MotifRefolder:
 
         # Load models and experiment
         if 'cuda' in self.device:
-            self._folding_model = esm.pretrained.esmfold_v1().eval()
+            self._folding_model = torch.load("/content/esmfold.model",weights_only=False,map_location="cuda")
+            self._folding_model.eval().to("cuda").requires_grad_(False)
+            # self._folding_model = esm.pretrained.esmfold_v1().eval()
         elif self.device == 'cpu': # ESMFold is not supported for half-precision model when running on CPU
-            self._folding_model = esm.pretrained.esmfold_v1().float().eval()
-        self._folding_model = self._folding_model.to(self.device)
+            self._folding_model = torch.load("/content/esmfold.model",weights_only=False,map_location="cpu")
+            # self._folding_model = esm.pretrained.esmfold_v1().float().eval()
 
 
     def run_sampling(self):
