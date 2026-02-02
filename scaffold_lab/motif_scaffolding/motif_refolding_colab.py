@@ -30,9 +30,9 @@ import GPUtil
 from pathlib import Path
 from typing import Optional, Dict, Union, List
 from omegaconf import DictConfig, OmegaConf
+from collections import defaultdict
 
 import esm
-from transformers import AutoTokenizer, EsmForProteinFolding
 import biotite.structure.io as strucio
 from biotite.sequence.io import fasta
 
@@ -46,14 +46,13 @@ rootutils.set_root(
     cwd=True, # change current working directory to the root directory (helps with filepaths)
 )
 
+import scaffold_lab
 from analysis import utils as au
 from data import structure_utils as su
-from analysis import diversity as du
-from analysis import novelty as nu
 from analysis import plot as pu
 
 
-class Refolder:
+class MotifRefolder:
 
     """
     Perform refolding analysis on a set of protein backbones.
@@ -74,10 +73,12 @@ class Refolder:
         conf_overrides: Dict=None
         ):
 
-        self._log = logging.getLogger(__name__)
+        self._log = logging.getLogger(self.__class__.__name__)
+        warnings.filterwarnings("ignore", module="biotite.*|psutil.*|matplotlib.*", category=UserWarning)
 
         OmegaConf.set_struct(conf, False)
 
+        self._package_dir = "/".join(scaffold_lab.__path__._path[0].split("/")[:-1])
         self._conf = conf
         self._infer_conf = conf.inference
         self._sample_conf = self._infer_conf.samples
@@ -103,8 +104,6 @@ class Refolder:
             self.device = 'cpu'
         self._log.info(f'Using device: {self.device}')
 
-        warnings.filterwarnings("ignore", module="biotite.*|psutil.*", category=UserWarning)
-
         # Customizing different structure prediction methods
         self._forward_folding = self._infer_conf.predict_method
         if 'AlphaFold2' in self._forward_folding:
@@ -114,20 +113,23 @@ class Refolder:
             os.environ['PATH'] = colabfold_path + ":" + current_path
             if self.device == 'cpu':
                 self._log.info(f"You're running AlphaFold2 on {self.device}.")
+
         # Set-up directories
         output_dir = self._infer_conf.output_dir
 
         self._output_dir = output_dir
         os.makedirs(self._output_dir, exist_ok=True)
-        self._pmpnn_dir = self._infer_conf.pmpnn_dir
+        self._pmpnn_dir = os.path.join(self._package_dir, self._infer_conf.pmpnn_dir)
         self._sample_dir = self._infer_conf.backbone_pdb_dir
         self._CA_only = self._infer_conf.CA_only
         self._hide_GPU_from_pmpnn = self._infer_conf.hide_GPU_from_pmpnn
+        self._max_backbones = self._infer_conf.samples.max_backbones
 
         # Configs for motif-scaffolding
         if self._infer_conf.motif_csv_path is not None:
             self._motif_csv = self._infer_conf.motif_csv_path
-        self._native_pdbs_dir = self._infer_conf.native_pdbs_dir
+        self._motif_pdb = self._infer_conf.motif_pdb
+        self._whole_benchmark_set = None
 
         # Save config
         config_folder = os.path.basename(Path(self._output_dir))
@@ -136,25 +138,11 @@ class Refolder:
             OmegaConf.save(config=self._conf, f=f)
         self._log.info(f'Saving self-consistency config to {config_path}')
 
-        # Load models and experiment in huggingface style
+        # Load models and experiment
         if 'cuda' in self.device:
-
-            tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
-            model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
-            model = model.cuda()
-            # Uncomment to switch the stem to float16
-            model.esm = model.esm.half()
-            torch.backends.cuda.matmul.allow_tf32 = True
-            # Uncomment this line if your GPU memory is 16GB or less, or if you're folding longer (over 600 or so) sequences
-            model.trunk.set_chunk_size(64)
-            self._folding_model = model.eval()
+            self._folding_model = esm.pretrained.esmfold_v1().eval()
         elif self.device == 'cpu': # ESMFold is not supported for half-precision model when running on CPU
-
-            tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
-            model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
-            # Uncomment to switch the stem to float16
-            self._folding_model = model.float().eval()
-
+            self._folding_model = esm.pretrained.esmfold_v1().float().eval()
         self._folding_model = self._folding_model.to(self.device)
 
 
@@ -164,122 +152,210 @@ class Refolder:
         motif_info_dict = {}
 
         for pdb_file in os.listdir(self._sample_dir):
-            if ".pdb" in pdb_file:
-                backbone_name = os.path.splitext(pdb_file)[0]
-                sample_num = backbone_name.split("_")[-1]
-                parts = backbone_name.split('_')
-                backbone_name = parts[0] if len(parts) == 2 else '_'.join(parts[:-1])
 
-                # Read motif information data and save into json file
-                if os.path.exists(self._motif_csv):
-                    csv_data = au.get_csv_data(self._motif_csv, backbone_name, sample_num)
-                else:
-                    csv_data = au.parse_input_scaffold(
-                        os.path.join(self._sample_dir, pdb_file))
+            naming_number = 1
 
-                if csv_data == None:
-                    self._log.warning(f'Motif information is missing for {pdb_file}. Skipping...')
+            if ".pdb" not in pdb_file:
+                continue
+
+            # Backbone name handling
+            all_name = os.path.splitext(pdb_file)[0]
+            design_pdb = os.path.join(self._sample_dir, pdb_file)
+            try:
+                case_num, backbone_name, sample_num = all_name.split("_") # "01_1BCF_1.pdb"
+                if self._max_backbones and int(sample_num) >= self._max_backbones:
+                    self._log.info(f"Skipping sample {sample_num} because "
+                            f"max_backbones={self._max_backbones}")
                     continue
-                contig, mask, motif_indices, redesign_info = csv_data
+
                 
-                motif_info_dict[f'{backbone_name}_{sample_num}'] = {
-                    "contig": contig,
-                    "motif_idx": motif_indices,
-                    "redesign_info": redesign_info
-                }
-
-                # Deal with contig
-                if 'IL17RA' in pdb_file:
-                    reference_contig = "E63-70/E101-110"
-                elif '6VW1' not in pdb_file:
-                    reference_contig = '/'.join(re.findall(r'[A-Za-z]+\d+-\d+', contig))
-                design_contig = au.motif_indices_to_contig(motif_indices)
-                print(f'design_contig: {design_contig}')
-
-                # Handle redesigned positions
-                if redesign_info is not None:
-                    self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
-                    motif_indices = au.introduce_redesign_positions(motif_indices, redesign_info)
-
-                # Handle complex case for PDB 6VW1
-                if backbone_name == '6VW1':
-                    reference_contig = "A24-42/A64-82"
-                    parts_6VW1 = design_contig.split("/")
-                    design_contig = '/'.join(parts_6VW1[:-1])
-                    chain_B = parts_6VW1[-1]
-                    start, end = map(int, chain_B[1:].split("-"))
-                    chain_B_indices = list(range(start, end + 1))
-
-                if '_' in backbone_name: # Handle length-variable design for different PDB cases
-                    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name.split("_")[0]}.pdb')
-                else:
-                    reference_pdb = os.path.join(self._native_pdbs_dir, f'{backbone_name}.pdb')
-                design_pdb = os.path.join(self._sample_dir, pdb_file)
-
-                # Extract motif and calculate motif-RMSD
-                reference_motif_CA = au.motif_extract(reference_contig,
-                        reference_pdb, atom_part="CA")
-                design_motif = au.motif_extract(design_contig, design_pdb,
-                        atom_part="CA")
-                rms = au.rmsd(reference_motif_CA, design_motif)
-
-                # Extract motif with all backbone atoms for subsequent
-                # motif_rmsd computation on predicted folded structure.
-                reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
-
-                # Save outputs
-                basename_dir = os.path.basename(os.path.normpath(self._sample_dir))
-                backbone_dir = os.path.join(self._output_dir, basename_dir, f'{backbone_name}_{sample_num}')
-                if os.path.exists(backbone_dir):
-                    self._log.info(f'Backbone {backbone_name} already existed, pass then.')
-                    continue
-
-                os.makedirs(backbone_dir, exist_ok=True)
-                self._log.info(f'Running self-consistency on {backbone_name}')
-                shutil.copy2(os.path.join(self._sample_dir, pdb_file), backbone_dir)
-                print(f'copied {pdb_file} to {backbone_dir}')
-
-                #seperate_pdb_folder = os.path.join(backbone_dir, backbone_name)
-                pdb_path = os.path.join(backbone_dir, pdb_file)
-                sc_output_dir = os.path.join(backbone_dir, 'self_consistency')
-                os.makedirs(sc_output_dir, exist_ok=True)
-                shutil.copy(pdb_path, os.path.join(
-                    sc_output_dir, os.path.basename(pdb_path)))
+                backbone_name = case_num + "_" + backbone_name
+                self._log.info(f"case_num: {case_num}, tested case: {backbone_name}, sample_num: {sample_num}")
+                reference_pdb = os.path.join(self._motif_pdb)
+            except ValueError:
+                self._log.warning(f"The naming format {all_name} is not as default. \
+                Try to use another format.")
+                try:
+                    assert len(all_name.split("_")) == 2, f"{all_name} not following default!"
+                    backbone_name, sample_num = all_name.split("_") # "1BCF_1.pdb"
+                    self._log.info(f"tested case :{backbone_name}, sample_num: {sample_num}")
+                    reference_pdb = self._motif_pdb
+                except (ValueError, AssertionError):
+                    self._log.warning(f"The naming format {all_name} is not as default. \
+                    Try to rename the PDB file to format.")
+                    for native_pdb in self._whole_benchmark_set:
+                        print(f"native_pdb: {native_pdb}")
+                        if native_pdb in all_name.upper():
+                            print(f"all name upper: {all_name.upper()}")
+                            backbone_name = native_pdb
+                            break
+                        else:
+                            raise ValueError(f"No benchmark case detected in {all_name}. Try to reformat.")
+                    reference_pdb = self._motif_pdb
+                    rename_design_pdb = os.path.join(self._output_dir, f"{backbone_name}_{naming_number}.pdb")
+                    shutil.copy2(design_pdb, rename_design_pdb)
+                    design_pdb = rename_design_pdb
+                    naming_number += 1
 
 
-                if backbone_name == '6VW1':
-                    _ = self.run_self_consistency(
-                    sc_output_dir,
-                    pdb_path,
-                    motif_mask=mask,
-                    motif_indices=motif_indices,
-                    rms=rms,
-                    complex_motif=chain_B_indices
+            # The following part is a test version and needed to be cleaned up.
+            if self._whole_benchmark_set is not None:
+                try:
+                    benchmark_set_info = pd.read_csv(self._whole_benchmark_set)
+                    reference_contig = benchmark_set_info.iloc[
+                        benchmark_set_info.iloc[:, 0] == backbone_name, 1
+                    ].values[0]
+
+                    #motif_pdb = os.path.join(, f"{backbone_name}.pdb")
+                    reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
+                except FileNotFoundError:
+                    raise FileNotFoundError(f"Benchmark Information not found in {benchmark_set_info}.")
+                except IndexError:
+                    raise ValueError(f"No contig value found for the name {backbone_name} in benchmark information.")
+                except Exception as e:
+                    pass
+                    #raise RuntimeError(f"An error occured while processing {pdb_file}.")
+                
+
+            # Read motif information data and save into json file
+            if os.path.exists(self._motif_csv):
+                csv_data = au.get_csv_data(self._motif_csv, backbone_name, sample_num)
+            else:
+                csv_data = au.parse_input_scaffold(
+                    os.path.join(self._sample_dir, pdb_file))
+
+            if csv_data == None:
+                self._log.warning(f'Motif information is missing for {pdb_file}. Skipping...')
+                continue
+            contig, mask, motif_indices, redesign_info, segments_order = csv_data
+
+            # Directly extract contig from motif_pdb files
+            reference_contig = au.reference_contig_from_segments(reference_pdb, segments_order)
+            # The contig in designed pdb files
+            design_contig = au.motif_indices_to_contig(motif_indices)
+
+            
+            # Store information for later pymol visualization
+            motif_info_dict[f'{backbone_name}_{sample_num}'] = {
+                "contig": reference_contig,
+                "motif_idx": motif_indices,
+                "redesign_info": redesign_info
+            }
+            
+            # Save outputs
+            backbone_dir = os.path.join(self._output_dir, f'{backbone_name}_{sample_num}')
+            if "ESMFold" in self._forward_folding:
+                summary_fn = os.path.join(backbone_dir, 'self_consistency/esm_eval_results.csv')
+            else:
+                assert 'AlphaFold2' in self._forward_folding
+                summary_fn = os.path.join(backbone_dir, 'self_consistency/af2_eval_results.csv')
+            if os.path.exists(summary_fn):
+                self._log.warning(f'Backbone {backbone_name}_{sample_num} results already exists. Continuing...')
+                continue
+
+            os.makedirs(backbone_dir, exist_ok=True)
+            self._log.info(f'Running self-consistency on {backbone_name}, '
+                    f'sample {sample_num}')
+            shutil.copy2(os.path.join(self._sample_dir, pdb_file), backbone_dir)
+            print(f'copied {pdb_file} to {backbone_dir}')
+
+            
+            # Handle redesigned positions
+            self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
+
+            if redesign_info is not None:
+                self._log.info(f'Positions allowed to be redesigned: {redesign_info}')
+            else:
+                self._log.info(f'No positions need to be redesigned.')
+
+            # Will return standard mapping list and fixed positions if no residue within motifs need to be redesigned
+            redesign_mapping_dict, redesign_position_list, fixed_idx_for_mpnn = au.motif_mapping(
+                motif_indices=motif_indices, 
+                redesign_positions=redesign_info, 
+                contig=contig
                 )
-                else:
-                    _ = self.run_self_consistency(
-                        sc_output_dir,
-                        pdb_path,
-                        motif_mask=mask,
-                        motif_indices=motif_indices,
-                        rms=rms,
-                        ref_motif=reference_motif,
-                        sample_contig=design_contig
-                    )
-                self._log.info(f'Done sample: {pdb_path}')
+                
+            if self._infer_conf.force_motif_AA_type:
+                modified_design_pdb_path = os.path.join(backbone_dir, f"{backbone_name}_{sample_num}.pdb")
+                
+                # This will overwrite original protein if AA types of motifs are not all correct.
+                # The original pdb will be copied to another directory named "original_pdb" as a reference.
+                motif_AA_correct = au.check_motif_AA_type(
+                    design_file=design_pdb,
+                    reference_file=reference_pdb,
+                    position_mapping=redesign_mapping_dict,
+                    redesign_list=redesign_position_list,
+                    output_file=modified_design_pdb_path
+                )
+                if motif_AA_correct == False:
+                    original_pdb_dir = os.path.join(backbone_dir, "original_pdb")
+                    os.makedirs(original_pdb_dir, exist_ok=True)
+                    shutil.copy2(design_pdb, original_pdb_dir)
+                    self._log.info(f"Copied original PDB to {original_pdb_dir} as reference.")
+                    design_pdb = modified_design_pdb_path   
 
-        output_json_path = os.path.join(self._output_dir, (os.path.basename(os.path.normpath(self._sample_dir))), 'motif_info.json')
+            # Extract motif and calculate backbone motif-RMSD, which is the `backbone_motif_rmsd` metric in outputs.
+            # !!Note: This `rms` is the motif-RMSD between native motif and initially-generated backbone,
+            # i.e. without refolding procedure.
+            reference_motif_CA = au.motif_extract(reference_contig,
+                    reference_pdb, atom_part="CA")
+            design_motif_CA = au.motif_extract(design_contig, design_pdb,
+                    atom_part="CA")
+            backbone_motif_rmsd = au.rmsd(reference_motif_CA, design_motif_CA)
+
+            # Extract motif with all backbone atoms for subsequent
+            # motif_rmsd computation on predicted folded structure.
+            design_motif = au.motif_extract(design_contig, design_pdb, atom_part="backbone")
+            reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
+
+
+            if self._infer_conf.force_motif_AA_type and motif_AA_correct == False:
+                pdb_path = modified_design_pdb_path
+            else:
+                pdb_path = os.path.join(backbone_dir, pdb_file)
+
+            sc_output_dir = os.path.join(backbone_dir, 'self_consistency')
+            os.makedirs(sc_output_dir, exist_ok=True)
+            shutil.copy(pdb_path, os.path.join(
+                sc_output_dir, os.path.basename(pdb_path)))
+
+            
+            if backbone_name == '6VW1': # Complex evaluation, not implemented yet
+                _ = self.run_self_consistency(
+                decoy_pdb_dir=sc_output_dir,
+                reference_pdb_path=pdb_path,
+                motif_mask=mask,
+                fixed_indices=fixed_idx_for_mpnn,
+                backbone_motif_rmsd=backbone_motif_rmsd,
+                #complex_motif=chain_B_indices
+            )
+
+            else:
+                _ = self.run_self_consistency(
+                    decoy_pdb_dir=sc_output_dir,
+                    reference_pdb_path=pdb_path,
+                    motif_mask=mask,
+                    fixed_indices=fixed_idx_for_mpnn,
+                    backbone_motif_rmsd=backbone_motif_rmsd,
+                    ref_motif=reference_motif,
+                    sample_contig=design_contig
+                )
+            self._log.info(f'Done sample: {pdb_path}')
+
+        # Information for PyMol visualization
+        output_json_path = os.path.join(self._output_dir, 'motif_info.json')
         with open(output_json_path, 'w') as json_file:
             json.dump(motif_info_dict, json_file, indent=4, separators=(",", ": "), sort_keys=True)
         self._log.info(f'Motif information saved into {output_json_path}')
+
 
     def run_self_consistency(
             self,
             decoy_pdb_dir: str,
             reference_pdb_path: str,
             motif_mask: Optional[np.ndarray]=None,
-            motif_indices: Optional[Union[List, str]]=None,
-            rms: Optional[float]=None,
+            fixed_indices: Optional[Union[List, str]]=None,
+            backbone_motif_rmsd: Optional[float]=None,
             complex_motif: Optional[List]=None,
             ref_motif=None,
             sample_contig=None
@@ -290,6 +366,11 @@ class Refolder:
             decoy_pdb_dir: directory where designed protein files are stored.
             reference_pdb_path: path to reference protein file
             motif_mask: Optional mask of which residues are the motif.
+            fixed_indices: Optionial list-like object indicating which positions are allowed to be redesigned.
+            backbone_motif_rmsd: The Motif-RMSD between the motifs of designed generated backbones (without refold) and native motifs.
+            complex_motif: (TBD) Add features for complex motif calculation.
+            ref_motif: Motif 3D corrdinates of native PDBs. Represented by backbone atoms.
+            sample_contig: The contig indicating the motif locations on designed backbones to calculating Motif-RMSD.
 
         Returns:
             Writes ProteinMPNN outputs to decoy_pdb_dir/seqs
@@ -309,13 +390,11 @@ class Refolder:
             self._CA_only = True
         else:
             self._log.info(f'The input protein has atom types: {set(checked_structure.atom_name)}\n\
-            Recommend using backbone version of ProteinMPNN.')
+            Recommend using full-backbone version of ProteinMPNN.')
             pass
 
 
         # Run ProteinMPNN
-
-        
 
         jsonl_path = os.path.join(decoy_pdb_dir, "parsed_pdbs.jsonl")
         process = subprocess.Popen([
@@ -344,6 +423,7 @@ class Refolder:
             '--batch_size',
             str(self._sample_conf.mpnn_batch_size),
         ]
+        self._log.info(f'Running ProteinMPNN with command {" ".join(pmpnn_args)}')
         if self._infer_conf.gpu_id is not None:
             pmpnn_args.append('--device')
             pmpnn_args.append(str(self._infer_conf.gpu_id))
@@ -351,20 +431,18 @@ class Refolder:
             pmpnn_args.append('--ca_only')
 
         # Fix desired motifs
-        if motif_indices is not None:
-            fixed_positions = au.motif_indices_to_fixed_positions(motif_indices)
+        if (fixed_indices is not None) and (len(fixed_indices) !=0):
+            fixed_positions = au.motif_indices_to_fixed_positions(fixed_indices)
+            print(f"fix positions: {fixed_positions}")
             chains_to_design = "A"
             # This is particularlly for 6VW1
             if complex_motif is not None:
-                motif_indices = motif_indices.strip('[]').split(', ')
-                motif_indices = sorted([int(index) for index in motif_indices])
-                motif_indices = [element for element in motif_indices if element not in complex_motif]
+                fixed_indices = fixed_indices.strip('[]').split(', ')
+                fixed_indices = sorted([int(index) for index in fixed_indices])
+                fixed_indices = [element for element in fixed_indices if element not in complex_motif]
                 complex_motif = " ".join(map(str, complex_motif)) # List2str
-                fixed_positions = " ".join(map(str, motif_indices)) # List2str
-                print(motif_indices)
-                print(fixed_positions)
+                fixed_positions = " ".join(map(str, fixed_indices)) # List2str
                 fixed_positions = fixed_positions + ", " + complex_motif
-                print(fixed_positions)
                 chains_to_design = "A B"
             path_for_fixed_positions = os.path.join(decoy_pdb_dir, "fixed_pdbs.jsonl")
 
@@ -480,7 +558,7 @@ class Refolder:
             # Run ESMFold
                 self._log.info(f'Running ESMFold......')
                 esmf_sample_path = os.path.join(esmf_dir, f'sample_{idx}.pdb')
-                _, full_output = self.run_folding(string, esmf_sample_path)
+                _, full_output = self.run_esmfold(string, esmf_sample_path)
                 esmf_feats = su.parse_pdb_feats('folded_sample', esmf_sample_path)
                 sample_seq = su.aatype_to_seq(sample_feats['aatype'])
 
@@ -502,8 +580,8 @@ class Refolder:
                     refold_motif_rmsd = su.calc_aligned_rmsd(
                         sample_motif, esm_motif)
                     mpnn_results['refold_motif_rmsd'].append(f'{refold_motif_rmsd:.3f}')
-                if rms is not None:
-                    mpnn_results['backbone_motif_rmsd'].append(f'{rms:.3f}')
+                if backbone_motif_rmsd is not None:
+                    mpnn_results['backbone_motif_rmsd'].append(f'{backbone_motif_rmsd:.3f}')
                 mpnn_results['sample_idx'].append(int(idx))
                 mpnn_results['rmsd'].append(f'{rmsd:.3f}')
                 mpnn_results['tm_score'].append(f'{tm_score:.3f}')
@@ -522,7 +600,7 @@ class Refolder:
             mpnn_results.sort_values('sample_idx', inplace=True)
             mpnn_results.to_csv(esm_csv_path, index=False)
 
-        # Run AF2
+        # Run AlphaFold2 (No MSA)
         if 'AlphaFold2' in self._forward_folding:
             self._log.info(f'Running AlphaFold2......')
 
@@ -530,8 +608,9 @@ class Refolder:
             af2_dir = os.path.join(decoy_pdb_dir, 'af2')
             os.makedirs(af2_dir, exist_ok=True)
             af2_outputs = au.cleanup_af2_outputs(
-                af2_raw_dir,
-                os.path.join(decoy_pdb_dir, 'af2')
+                raw_dir=af2_raw_dir,
+                clean_dir=os.path.join(decoy_pdb_dir, 'af2'),
+                remove_after_cleanup=self._af2_conf.remove_raw_outputs
             )
 
             for i, (header, string) in enumerate(seqs_dict.items()):
@@ -564,8 +643,8 @@ class Refolder:
                     refold_motif_rmsd = su.calc_aligned_rmsd(
                         sample_motif, af2_motif)
                     af2_outputs[f'sample_{idx}']['refold_motif_rmsd'] = f'{refold_motif_rmsd:.3f}'
-                if rms is not None:
-                    af2_outputs[f'sample_{idx}']['backbone_motif_rmsd'] = f'{rms:.3f}'
+                if backbone_motif_rmsd is not None:
+                    af2_outputs[f'sample_{idx}']['backbone_motif_rmsd'] = f'{backbone_motif_rmsd:.3f}'
                 af2_outputs[f'sample_{idx}']['rmsd'] = f'{rmsd:.3f}'
                 af2_outputs[f'sample_{idx}']['tm_score'] = f'{tm_score:.3f}'
                 af2_outputs[f'sample_{idx}']['header'] = header
@@ -591,8 +670,7 @@ class Refolder:
             joint_results.to_csv(os.path.join(decoy_pdb_dir, 'joint_eval_results.csv'), index=False)
 
 
-
-    def run_folding(self, sequence, save_path):
+    def run_esmfold(self, sequence: str, save_path: Union[str, Path]):
         """
         Run ESMFold on sequence.
         TBD: Add options for OmegaFold and AlphaFold2.
@@ -605,7 +683,7 @@ class Refolder:
             f.write(output[0])
         return output, output_dict
 
-    def run_af2(self, sequence, save_path):
+    def run_af2(self, sequence: str, save_path: Union[str, Path]):
         """
         Run AlphaFold2 (single-sequence) through LocalColabFold.
         """
@@ -658,35 +736,34 @@ class Refolder:
                 if num_tries_af2 > 10:
                     raise e
 
-class Evaluator:
-    def __init__(
-    self,
-    conf:DictConfig,
-    conf_overrides: Dict=None
-    ):
 
-        self._log = logging.getLogger(__name__)
+class MotifEvaluator:
+
+    def __init__(
+        self, 
+        conf:DictConfig,
+        conf_overrides: Dict=None
+        ):
+
+        self._log = logging.getLogger(self.__class__.__name__)
+        logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 
         OmegaConf.set_struct(conf, False)
 
         self._conf = conf
         self._infer_conf = conf.inference
         self._eval_conf = conf.evaluation
-        self._result_dir = os.path.join(
-            self._infer_conf.output_dir,
-            os.path.basename(os.path.normpath(self._infer_conf.backbone_pdb_dir))
-            )
+        self._result_dir = self._infer_conf.output_dir
+        self._motif_pdb = self._infer_conf.motif_pdb
 
-        self._foldseek_path = self._eval_conf.foldseek_path
-        self._foldseek_database = self._eval_conf.foldseek_database
-        self._assist_protein_path = self._eval_conf.assist_protein
+        self._package_dir = "/".join(scaffold_lab.__path__._path[0].split("/")[:-1])
+        self._assist_protein_path = os.path.join(self._package_dir, self._eval_conf.assist_protein)
+        self._tm_threshold = self._eval_conf.tmscore_threshold
+        self._visualize = self._eval_conf.visualize
 
         self.folding_method = self._infer_conf.predict_method
 
         self._rng = np.random.default_rng(self._infer_conf.seed)
-
-        # Hardware resources
-        self._num_cpu_cores = os.cpu_count()
 
         # Merge results into one csv file
         if 'ESMFold' in self.folding_method and 'AlphaFold2' in self.folding_method:
@@ -696,142 +773,156 @@ class Evaluator:
         else:
             self.prefix = 'af2'
 
-    def run_evaluation(self):
 
-        # Merge results of different backbones
-        results_df, pdb_count = au.csv_merge(
-            root_dir=self._result_dir,
-            prefix=self.prefix
-        )
-
-        summary_csv_path = os.path.join(self._result_dir, 'summary_results.csv')
-        complete_csv_path = os.path.join(self._result_dir, 'complete_results.csv')
-        results_df.to_csv(complete_csv_path, index=False)
+    def _process_results(self, prefix: str):
+        """Process results for a single forward folding method (ESMFold / AF2)."""
+        results_df, pdb_count = au.csv_merge(root_dir=self._result_dir, prefix=prefix)
 
         # Analyze outputs
-        complete_results, summary_results, designability_count, backbones = au.analyze_success_rate(
-            merged_data=complete_csv_path,
-            group_mode='all'
+        complete_results, summary_results, designability_count, backbones, closest_contender = au.analyze_success_rate(
+            merged_data=results_df, group_mode="all", prefix=prefix
         )
-        self._log.info(f'Designable backbones for {self._result_dir}: {designability_count}.')
 
+        summary_csv_path = os.path.join(self._result_dir, f"{prefix}_summary_results.csv")
+        complete_csv_path = os.path.join(self._result_dir, f"{prefix}_complete_results.csv")
         complete_results.to_csv(complete_csv_path, index=False)
-        summary_results.to_csv(summary_csv_path, index=False)
+        summary_column_order = [
+            "sample_idx",
+            "Success",
+            "rmsd",
+            "motif_rmsd",
+            "length",
+            "sequence",
+            "sample_path",
+            "backbone_path",
+        ]
+        summary_results.to_csv(summary_csv_path, columns=summary_column_order, index=False)
 
-        # Diversity Calculation
-        successful_backbone_dir = os.path.join(self._result_dir, 'successful_backbones')
-        if not os.path.exists(successful_backbone_dir):
-            os.makedirs(successful_backbone_dir, exist_ok=False)
+        # Auxiliary metrics
+        if not closest_contender is None:
+            closest_scaffold_dir = os.path.join(self._result_dir, f"{prefix}_closest_contender")
+            os.makedirs(closest_scaffold_dir, exist_ok=True)
+            closest_contender_csv_path = os.path.join(closest_scaffold_dir, f"{prefix}_closest_contender.csv")
+            closest_contender.to_csv(closest_contender_csv_path, index=False)
+            
+            closest_contender_path = closest_contender['backbone_path'].iloc[0]
+            shutil.copy(closest_contender_path, os.path.join(closest_scaffold_dir, os.path.basename(closest_contender_path)))
+
+        else:
+            self._log.info(f"There will not be closest contender since no designable scaffold detected.")
+
+        return complete_results, backbones, designability_count, pdb_count, closest_contender
+
+
+    def _collect_successful_backbones(
+        self, 
+        backbones: set, 
+        prefix: str
+        ):
+        """Collect successful backbones without Foldseek clustering."""
+        successful_backbone_dir = os.path.join(self._result_dir, f"{prefix}_successful_backbones")
+        os.makedirs(successful_backbone_dir, exist_ok=True)
+
         for pdb in backbones:
-            new_path = os.path.join(successful_backbone_dir, os.path.basename(pdb))
-            shutil.copy(pdb, new_path)
+            shutil.copy(pdb, os.path.join(successful_backbone_dir, os.path.basename(pdb)))
 
-        diversity = du.foldseek_cluster(
-            input=successful_backbone_dir,
-            assist_protein_path=self._assist_protein_path,
-            tmscore_threshold=0.5,
-            alignment_type= 1,
-            output_mode='DICT',
-            save_tmp=True,
-            foldseek_path=self._foldseek_path
+        self._log.info(
+            f"Collected {len(backbones)} successful backbones for {prefix}."
         )
-        self._log.info(f"Diversity Calculation for {self._result_dir} finished.\n\
-            Total designable backbones: {diversity['Samples']}\n\
-            Unique designable backbones: {diversity['Clusters']}\n\
-            Diversity: {diversity['Diversity']}")
 
-        diversity_result_path = os.path.join(successful_backbone_dir, 'diversity_cluster.tsv')
-        if os.path.exists(diversity_result_path):
-            with open (diversity_result_path, 'r') as f:
-                cluster_info = f.readlines()
-            cluster_info = [i.split('\t')[0] for i in cluster_info]
-            if 'assist_protein.pdb' in cluster_info:
-                cluster_info.remove('assist_protein.pdb')
-            unique_designable_backbones = set(cluster_info)
-
-            unique_designable_backbones_dir = os.path.join(self._result_dir, 'unique_designable_backbones')
-            if not os.path.exists(unique_designable_backbones_dir):
-                os.makedirs(unique_designable_backbones_dir, exist_ok=False)
-            for pdb in unique_designable_backbones:
-                old_path = os.path.join(successful_backbone_dir, pdb)
-                shutil.copy(old_path, unique_designable_backbones_dir)
-        else:
-            self._log.info('Diversity results not found. Please check if Foldseek clustered\
-                properly or there is no designable backbone presented.')
+        return successful_backbone_dir
 
 
-        # Novelty Calculation
-        if len(os.listdir(successful_backbone_dir)) > 0:
-            success_results = complete_results[complete_results['Success'] == True]
-            results_with_novelty = nu.calculate_novelty(
-                input_csv=success_results,
-                foldseek_database_path=self._eval_conf.foldseek_database,
-                max_workers=self._num_cpu_cores,
-                cpu_threshold=75.0
+
+
+    def run_evaluation(self):
+        """Run evaluation for all specified folding methods (without Foldseek)."""
+        designability_counts = {}
+        pdb_counts = {}
+
+        for method in self.folding_method:
+            self._log.info(f"Processing results for folding method: {method}")
+            prefix = "esm" if method == "ESMFold" else "af2"
+
+            # Process results
+            complete_results, backbones, designability_count, pdb_count, closest_contender = self._process_results(prefix)
+            
+            # Collect successful backbones (without Foldseek clustering)
+            successful_backbone_dir = self._collect_successful_backbones(backbones, prefix)
+
+            # Collect results
+            designability_counts[prefix] = designability_count
+            pdb_counts[prefix] = pdb_count
+
+            # Auxiliary metrics
+            au.write_auxiliary_metrics(
+                stored_path=self._result_dir,
+                auxiliary_results=closest_contender,
+                prefix=prefix
             )
-            mean_novelty = results_with_novelty['pdbTM'].mean()
-            max_novelty = results_with_novelty['pdbTM'].min()
-            self._log.info(f'Novelty Calculation finished.\n\
-                Average novelty (pdbTM) among successful backbones: {mean_novelty:.3f}\n\
-                The most novel backbone has a pdbTM of {max_novelty:.3f}')
-            novelty_csv_path = os.path.join(self._result_dir, 'successful_novelty_results.csv')
-            results_with_novelty.to_csv(novelty_csv_path, index=False)
-        else:
-            self._log.info('No successful backbone was found. Pass novelty calculation.')
-            mean_novelty = 'null'
 
-        # Summary outputs
-        au.write_summary_results(
-            stored_path=self._result_dir,
-            pdb_count=pdb_count,
-            designable_count=designability_count,
-            diversity_result=diversity,
-            mean_novelty_value=mean_novelty)
-        """
-        designable_fraction = f'{(designability_count / (pdb_count + 1e-6) * 100):.2f}'
-        diversity_value = diversity['Diversity']
-        with open (os.path.join(self._result_dir, 'summary.txt'), 'w') as f:
-            f.write('-------------------Summary-------------------\n')
-            f.write(f'The following are evaluation results for {os.path.abspath(self._result_dir)}:\n')
-            f.write(f'Evaluated Protein: {os.path.basename(os.path.normpath(self._result_dir))}\n')
-            f.write(f'Designability Fraction: {designable_fraction}%\n')
-            f.write(f'Diversity: {diversity_value}\n')
-            f.write(f'Novelty: {mean_novelty}\n')
-        """
-        # Visualization
-        pu.plot_metrics_distribution(
-            input=os.path.join(self._result_dir, 'complete_results.csv'),
-            save_path=self._result_dir
-        )
+        # Write summary outputs (without diversity and novelty)
+        for prefix in designability_counts.keys():
+            summary_path = os.path.join(self._result_dir, f"{prefix}_evaluation_summary.txt")
+            with open(summary_path, 'w') as f:
+                f.write(f"Evaluation Summary for {prefix}\n")
+                f.write(f"="*50 + "\n")
+                f.write(f"Total PDB count: {pdb_counts[prefix]}\n")
+                f.write(f"Designable count: {designability_counts[prefix]}\n")
+                f.write(f"Designability rate: {designability_counts[prefix]/pdb_counts[prefix]*100:.2f}%\n")
+            self._log.info(f"Summary written to {summary_path}")
 
-        # Pymol session files
-        native_backbones = self._conf.inference.native_pdbs_dir
-        pu.motif_scaffolding_pymol_write(
-            unique_designable_backbones=os.path.join(self._result_dir, 'unique_designable_backbones'),
-            native_backbones=native_backbones,
-            motif_json=os.path.join(self._result_dir, 'motif_info.json'),
-            save_path=os.path.join(self._result_dir, 'pymol_session.pse')
-        )   
+        # Optional visualization
+        if self._visualize:
+            for method in self.folding_method:
+                self._log.info(f"Performing visualization for {method}.")
+                prefix = "esm" if method == "ESMFold" else "af2"
+                pu.plot_metrics_distribution(
+                    input=os.path.join(self._result_dir, f"{prefix}_complete_results.csv"),
+                    save_path=self._result_dir,
+                    prefix=prefix
+                )
+
+                pymol_reference_pdb = os.path.join(self._motif_pdb)
+
+                pu.motif_scaffolding_pymol_write(
+                    unique_designable_backbones=os.path.join(self._result_dir, f'{prefix}_successful_backbones'),
+                    reference_pdb=pymol_reference_pdb,
+                    motif_json=os.path.join(self._result_dir, 'motif_info.json'),
+                    save_path=os.path.join(self._result_dir, f'{prefix}_pymol_session.pse')
+                    )
+
+                # Auxiliary metrics
+                closest_contender_path = os.path.join(self._result_dir, f'{prefix}_closest_contender')
+                if os.path.exists(closest_contender_path) and os.listdir(closest_contender_path):
+                    pu.motif_scaffolding_pymol_write(
+                        unique_designable_backbones=closest_contender_path,
+                        reference_pdb=pymol_reference_pdb,
+                        motif_json=os.path.join(self._result_dir, 'motif_info.json'),
+                        save_path=os.path.join(closest_contender_path, f'{prefix}_closest_contender.pse')
+                    )
+                
 
 
-@hydra.main(version_base=None, config_path="../../config", config_name="motif_scaffolding.yaml")
+
+@hydra.main(version_base=None, config_path="../../config",
+        config_name="motif_scaffolding.yaml")
 def run(conf: DictConfig) -> None:
 
     # Perform fixed backbone design and forward folding
     print('Starting refolding for motif-scaffolding task......')
     start_time = time.time()
-    refolder = Refolder(conf)
+    refolder = MotifRefolder(conf)
     refolder.run_sampling()
     elapsed_time = time.time() - start_time
     print(f"Refolding finished in {elapsed_time:.2f}s.")
 
-    # Perform analysis on outputs
+    # Perform analysis on outputs (without Foldseek)
     start_time = time.time()
-    evaluator = Evaluator(conf)
+    evaluator = MotifEvaluator(conf)
     evaluator.run_evaluation()
     elapsed_time = time.time() - start_time
     print(f'Evaluation finished in {elapsed_time:.2f}s. Voila!')
-
 
 if __name__ == '__main__':
     run()
