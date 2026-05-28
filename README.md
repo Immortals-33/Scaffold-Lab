@@ -31,8 +31,9 @@ We present the benchmark for both unconditional generation and conditional gener
 
 ## Updates
 
-* **_July 26th, 2024_**: A guideline for designing protein from scratch using different baseline methods is updated [here](https://github.com/Immortals-33/Scaffold-Lab/tree/main/baselines). We expect this as a reference for both reproduction and running methods benchmarked by our work with minimal efforts.
-* **_July 19th, 2024_**: We now enable motif positions to be partially redesigned with ProteinMPNN. Check out [here](https://github.com/Immortals-33/Scaffold-Lab/blob/main/demo/motif_scaffolding/motif_info.csv) to see the way of specification.
+* _**May 28th, 2026**_: :tada: Scaffold-Lab is finally published at [PLOS Computational Biology](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1014290)!
+* _**July 26th, 2024**_: A guideline for designing protein from scratch using different baseline methods is updated [here](https://github.com/Immortals-33/Scaffold-Lab/tree/main/baselines). We expect this as a reference for both reproduction and running methods benchmarked by our work with minimal efforts.
+* _**July 19th, 2024**_: We now enable motif positions to be partially redesigned with ProteinMPNN. Check out [here](https://github.com/Immortals-33/Scaffold-Lab/blob/main/demo/motif_scaffolding/motif_info.csv) to see the way of specification.
 * _**June 19th, 2024**_ : Scaffold-Lab now supports AlphaFold2 for evaluation! The implementation of AF2 is built upon [LocalColabFold](https://github.com/YoshitakaMo/localcolabfold). We refer interested users to [here](https://github.com/Immortals-33/Scaffold-Lab?tab=readme-ov-file#alphaFold2-single-chain-version) for more details. 
 
 > [!NOTE]  
@@ -277,12 +278,12 @@ And voilà!
 If you use Scaffold-Lab in your research or find it helpful, please cite:
 
 ```bibtex
-@article{zheng2024scaffoldlab,
+@article{10.1371/journal.pcbi.1014290,
 title = {Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework},
 author = {Zheng, Zhuoqi and Zhang, Bo and Zhong, Bozitao and Liu, Kexin and Li, Zhengxin and Zhu, Junjie and Yu, Jinyu and Wei Ting and Chen, Haifeng},
-year = {2024},
-journal = {bioRxiv},
-url = {https://www.biorxiv.org/content/10.1101/2024.02.10.579743v3}
+year = {2026},
+journal = {PLOS Computational Biology},
+url = {https://doi.org/10.1371/journal.pcbi.1014290}
 }
 ```
 
