@@ -1,7 +1,7 @@
 # Scaffold-Lab
 
 [![Paper](https://img.shields.io/badge/paper-PLOS%20Comp%20Bio-5E9213)](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1014290)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20080699.svg)](https://zenodo.org/records/20080699)
+[![DOI](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fzenodo.org%2Fapi%2Frecords%2F20080699&query=%24.doi&label=DOI&color=1682D4)](https://zenodo.org/records/20080699)
 
 Official implementation for [**_Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework_**](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1014290). 
 
