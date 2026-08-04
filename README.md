@@ -1,8 +1,9 @@
 # Scaffold-Lab
 
-[![Paper](https://img.shields.io/badge/paper-biorxiv.2024.02.10.579743-F0A145)](https://www.biorxiv.org/content/10.1101/2024.02.10.579743v3)
+[![Paper](https://img.shields.io/badge/paper-PLOS%20Comp%20Bio-5E9213)](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1014290)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20080699.svg)](https://zenodo.org/records/20080699)
 
-Official implementation for [**_Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework_**](https://www.biorxiv.org/content/10.1101/2024.02.10.579743v3). 
+Official implementation for [**_Scaffold-Lab: Critical Evaluation and Ranking of Protein Backbone Generation Methods in A Unified Framework_**](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1014290). 
 
 
 
@@ -38,7 +39,7 @@ We present the benchmark for both unconditional generation and conditional gener
 
 > [!NOTE]  
 >
-> You can also try our notebook in Colab. This is a **beta** version where bug reports and pull requests are especially welcomed. 
+> You can also try our notebook in Colab. 
 > 
 > [<img src="https://colab.research.google.com/assets/colab-badge.svg">](https://colab.research.google.com/github/Immortals-33/Scaffold-Lab/blob/main/scaffold_lab.ipynb)
 ***
